@@ -1,0 +1,28 @@
+# Lingkungan & Editor
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.vscode/
+.idea/
+venv/
+.venv/
+env/
+
+# Data & Database Operasional (JANGAN di-commit sesuai RULES.md)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Backup otomatis lokal
+backup/
+
+# Log aplikasi
+log/
+
+# PyInstaller / Build
+dist/
+build/
+*.spec
+
