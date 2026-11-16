@@ -71,6 +71,14 @@ def cari_global(conn: sqlite3.Connection, kata_kunci: str, limit: int = 20) -> L
             "anggota_id": r["anggota_id"]
         })
 
+    # 3. Integrasi Pencarian Cepat Unit Toko (Barang, Supplier, Penitip, Pembeli)
+    try:
+        from app.db.repo_kartu_toko import cari_entitas_toko_global
+        hasil_toko = cari_entitas_toko_global(conn, k, limit=limit)
+        hasil.extend(hasil_toko)
+    except Exception:
+        pass
+
     return hasil
 
 

@@ -46,6 +46,9 @@ def main() -> None:
     app = QApplication(sys.argv)
     app.setApplicationName(NAMA_APLIKASI)
 
+    from PySide6.QtGui import QFont
+    app.setFont(QFont("Segoe UI", 11))
+
     from app.ui.tema import STYLE_GLOBAL
     app.setStyleSheet(STYLE_GLOBAL)
 

@@ -4,12 +4,13 @@ app/ui/jendela_utama.py — Kerangka jendela utama PySide6 dengan stacked widget
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QMenuBar, QMenu, QStatusBar, QMessageBox, QStackedWidget,
-    QLineEdit, QListWidget, QListWidgetItem
+    QLineEdit, QListWidget, QListWidgetItem, QScrollArea, QFrame,
+    QPushButton, QButtonGroup
 )
-from PySide6.QtGui import QAction, QFont
+from PySide6.QtGui import QAction, QFont, QCursor
 from PySide6.QtCore import Qt
 import sqlite3
-from typing import Optional
+from typing import Optional, Dict
 
 from app.config import NAMA_APLIKASI, VERSI_APLIKASI
 from app.layanan.backup import buat_backup, ambil_info_backup_terakhir
@@ -27,6 +28,19 @@ from app.ui.layar_laporan_tahunan import LayarLaporanTahunan
 from app.ui.layar_closing import LayarClosing
 from app.ui.layar_impor import LayarImpor
 from app.ui.layar_kas import LayarKas
+from app.ui.layar_barang import LayarBarang
+from app.ui.layar_pihak import LayarPihak
+from app.ui.layar_pembelian import LayarPembelian
+from app.ui.layar_daftar_stok import LayarDaftarStok
+from app.ui.layar_ringkasan_toko import LayarRingkasanToko
+from app.ui.layar_penjualan import LayarPenjualan
+from app.ui.layar_piutang import LayarPiutang
+from app.ui.layar_penitipan import LayarPenitipan
+from app.ui.layar_kartu_barang import LayarKartuBarang
+from app.ui.layar_retur_toko import LayarReturToko
+from app.ui.layar_opname_toko import LayarOpnameToko
+from app.ui.layar_laporan_toko import LayarLaporanToko
+from app.ui.layar_closing_toko import LayarClosingToko
 
 
 class JendelaUtama(QMainWindow):
@@ -42,22 +56,52 @@ class JendelaUtama(QMainWindow):
 
     def _inisialisasi_ui(self) -> None:
         self.setWindowTitle(f"{NAMA_APLIKASI} v{VERSI_APLIKASI}")
-        self.resize(1024, 700)
-        self.setMinimumSize(900, 600)
+        self.resize(1200, 780)
+        self.setMinimumSize(1024, 650)
 
-        font_dasar = QFont("Segoe UI", 12)
+        font_dasar = QFont("Segoe UI", 11)
         self.setFont(font_dasar)
 
-        self._buat_menu()
+        # Sembunyikan QMenuBar standar karena navigasi sudah dialihkan ke sidebar modern
+        self.menuBar().hide()
 
-        wadah_utama = QWidget(self)
-        layout_utama = QVBoxLayout(wadah_utama)
-        layout_utama.setContentsMargins(15, 10, 15, 15)
-        layout_utama.setSpacing(10)
+        # Wadah Utama: Horizontal Split (Kiri: Sidebar Navigasi, Kanan: Konten Utama)
+        wadah_induk = QWidget(self)
+        layout_induk = QHBoxLayout(wadah_induk)
+        layout_induk.setContentsMargins(0, 0, 0, 0)
+        layout_induk.setSpacing(0)
 
-        # Header Atas: Breadcrumb Indikator Halaman Aktif & Kotak Cari Global
+        # 1. Sidebar Navigasi Kiri
+        self.tombol_nav: Dict[str, QPushButton] = {}
+        self.sections: Dict[str, dict] = {}
+        self.pemetaan_tombol_section: Dict[str, str] = {}
+        self.grup_nav = QButtonGroup(self)
+        self.grup_nav.setExclusive(True)
+
+        self.sidebar_frame = self._buat_sidebar()
+        layout_induk.addWidget(self.sidebar_frame)
+
+        # 2. Area Konten Kanan
+        wadah_konten = QWidget(self)
+        wadah_konten.setStyleSheet("background-color: #F8FAFC;")
+        layout_konten = QVBoxLayout(wadah_konten)
+        layout_konten.setContentsMargins(16, 12, 16, 14)
+        layout_konten.setSpacing(10)
+
+        # Header Atas: Tombol Toggle Sidebar, Breadcrumb Indikator Halaman Aktif & Kotak Cari Global
         top_bar = QHBoxLayout()
-        top_bar.setSpacing(12)
+        top_bar.setSpacing(10)
+
+        # Tombol Buka/Tutup Sidebar (Hamburger Menu)
+        self.btn_toggle_sidebar = QPushButton("☰ Menu", self)
+        self.btn_toggle_sidebar.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_toggle_sidebar.setToolTip("Buka atau tutup bilah samping (sidebar)")
+        self.btn_toggle_sidebar.setStyleSheet(
+            "background-color: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 6px; "
+            "padding: 0 14px; min-height: 38px; font-weight: bold; color: #1E293B; outline: none;"
+        )
+        self.btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
+        top_bar.addWidget(self.btn_toggle_sidebar)
 
         # Indikator Halaman Aktif (Breadcrumb)
         self.lbl_breadcrumb = QLabel("Halaman: Ringkasan (Beranda)", self)
@@ -76,31 +120,35 @@ class JendelaUtama(QMainWindow):
         top_bar.addWidget(lbl_cari)
 
         self.input_cari_global = QLineEdit(self)
-        self.input_cari_global.setPlaceholderText("Ketik nama, no. anggota, no. pinjaman, atau NIK karyawan... (hasil muncul instan)")
+        self.input_cari_global.setPlaceholderText("Ketik nama anggota, barang, supplier, penitip, pembeli... (hasil muncul instan)")
         self.input_cari_global.setMinimumHeight(38)
         self.input_cari_global.setStyleSheet(
-            "padding: 0 12px; border: 1.5px solid #93C5FD; border-radius: 6px; background-color: #FFFFFF;"
+            "padding: 0 12px; border: 1.5px solid #CBD5E1; border-radius: 6px; background-color: #FFFFFF;"
         )
         self.input_cari_global.textChanged.connect(self._on_cari_global_changed)
         top_bar.addWidget(self.input_cari_global, 1)
 
-        layout_utama.addLayout(top_bar)
+        layout_konten.addLayout(top_bar)
 
         self.list_hasil_cari = QListWidget(self)
         self.list_hasil_cari.setMaximumHeight(160)
         self.list_hasil_cari.setFont(QFont("Segoe UI", 11))
         self.list_hasil_cari.setStyleSheet(
-            "border: 1px solid #CBD5E1; border-radius: 4px; background-color: #F8FAFC;"
+            "border: 1px solid #CBD5E1; border-radius: 4px; background-color: #FFFFFF; selection-background-color: #DBEAFE; selection-color: #1E3A8A;"
         )
         self.list_hasil_cari.hide()
         self.list_hasil_cari.itemClicked.connect(self._on_hasil_cari_diklik)
-        layout_utama.addWidget(self.list_hasil_cari)
+        layout_konten.addWidget(self.list_hasil_cari)
 
         # Stacked Widget untuk navigasi layar
         self.stack = QStackedWidget(self)
 
         self.layar_ringkasan = LayarRingkasan(self.conn, callback_navigasi=self._aksi_navigasi_ringkasan, parent=self)
-        self.stack.addWidget(self.layar_ringkasan)
+        scroll_ringkasan = QScrollArea(self)
+        scroll_ringkasan.setWidgetResizable(True)
+        scroll_ringkasan.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_ringkasan.setWidget(self.layar_ringkasan)
+        self.stack.addWidget(scroll_ringkasan)
 
         self.layar_anggota = LayarAnggota(self.conn, parent=self)
         self.stack.addWidget(self.layar_anggota)
@@ -140,15 +188,382 @@ class JendelaUtama(QMainWindow):
         self.layar_kas = LayarKas(self.conn, parent=self)
         self.stack.addWidget(self.layar_kas)
 
+        # Modul 13 & 14: Unit Toko
+        self.layar_ringkasan_toko = LayarRingkasanToko(
+            self.conn, navigasi_callback=self._aksi_navigasi_toko, parent=self
+        )
+        scroll_ringkasan_toko = QScrollArea(self)
+        scroll_ringkasan_toko.setWidgetResizable(True)
+        scroll_ringkasan_toko.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_ringkasan_toko.setWidget(self.layar_ringkasan_toko)
+        self.stack.addWidget(scroll_ringkasan_toko)
+
+        self.layar_penjualan = LayarPenjualan(self.conn, parent=self)
+        self.stack.addWidget(self.layar_penjualan)
+
+        self.layar_piutang = LayarPiutang(self.conn, parent=self)
+        self.stack.addWidget(self.layar_piutang)
+
+        self.layar_penitipan = LayarPenitipan(self.conn, parent=self)
+        self.stack.addWidget(self.layar_penitipan)
+
+        self.layar_barang = LayarBarang(self.conn, parent=self)
+        self.stack.addWidget(self.layar_barang)
+
+        self.layar_pihak = LayarPihak(self.conn, parent=self)
+        self.stack.addWidget(self.layar_pihak)
+
+        self.layar_pembelian = LayarPembelian(self.conn, parent=self)
+        self.stack.addWidget(self.layar_pembelian)
+
+        self.layar_daftar_stok = LayarDaftarStok(self.conn, parent=self)
+        self.stack.addWidget(self.layar_daftar_stok)
+
+        # Modul 15: Unit Toko Lanjutan
+        self.layar_kartu_barang = LayarKartuBarang(
+            self.conn, navigasi_callback=self._aksi_navigasi_toko, parent=self
+        )
+        self.stack.addWidget(self.layar_kartu_barang)
+
+        self.layar_retur_toko = LayarReturToko(self.conn, parent=self)
+        self.stack.addWidget(self.layar_retur_toko)
+
+        self.layar_opname_toko = LayarOpnameToko(self.conn, parent=self)
+        self.stack.addWidget(self.layar_opname_toko)
+
+        self.layar_laporan_toko = LayarLaporanToko(self.conn, parent=self)
+        self.stack.addWidget(self.layar_laporan_toko)
+
+        self.layar_closing_toko = LayarClosingToko(self.conn, parent=self)
+        self.stack.addWidget(self.layar_closing_toko)
+
         self.stack.setCurrentWidget(self.layar_ringkasan)
 
-        layout_utama.addWidget(self.stack)
-        self.setCentralWidget(wadah_utama)
+        layout_konten.addWidget(self.stack)
+        layout_induk.addWidget(wadah_konten, 1)
+        self.setCentralWidget(wadah_induk)
 
         status_bar = QStatusBar(self)
         status_bar.setFont(QFont("Segoe UI", 10))
         self.setStatusBar(status_bar)
         status_bar.showMessage("Aplikasi siap digunakan.")
+
+        # Default sorot tombol ringkasan
+        self._sorot_tombol_nav("ringkasan")
+
+    def _buat_sidebar(self) -> QWidget:
+        """Membangun bilah samping (sidebar) navigasi modern, collapsible, dan dengan dropdown accordion."""
+        sidebar_frame = QFrame(self)
+        sidebar_frame.setFixedWidth(245)
+        sidebar_frame.setStyleSheet("background-color: #0F172A; border-right: 1px solid #1E293B;")
+
+        sidebar_layout = QVBoxLayout(sidebar_frame)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(0)
+
+        # 1. Header Logo & Info Koperasi + Tombol Ciutkan Cepat
+        header_widget = QWidget(sidebar_frame)
+        header_widget.setStyleSheet("background-color: #0B1120; border-bottom: 1px solid #1E293B;")
+        header_layout = QHBoxLayout(header_widget)
+        header_layout.setContentsMargins(16, 14, 12, 14)
+        header_layout.setSpacing(6)
+
+        header_teks_lay = QVBoxLayout()
+        header_teks_lay.setContentsMargins(0, 0, 0, 0)
+        header_teks_lay.setSpacing(2)
+
+        lbl_judul = QLabel("Koperasi dan Toko", header_widget)
+        lbl_judul.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        lbl_judul.setStyleSheet("color: #F8FAFC; border: none; background: transparent;")
+        header_teks_lay.addWidget(lbl_judul)
+
+        lbl_sub = QLabel("Sistem Administrasi Terpadu", header_widget)
+        lbl_sub.setFont(QFont("Segoe UI", 8.5))
+        lbl_sub.setStyleSheet("color: #94A3B8; border: none; background: transparent;")
+        header_teks_lay.addWidget(lbl_sub)
+
+        header_layout.addLayout(header_teks_lay, 1)
+
+        btn_tutup_sidebar = QPushButton("◀", header_widget)
+        btn_tutup_sidebar.setToolTip("Ciutkan / Sembunyikan Bilah Samping")
+        btn_tutup_sidebar.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_tutup_sidebar.setStyleSheet("""
+            QPushButton {
+                background-color: #1E293B;
+                color: #94A3B8;
+                border: 1px solid #334155;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 9pt;
+                outline: none;
+                min-height: 26px;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+                color: #F8FAFC;
+            }
+        """)
+        btn_tutup_sidebar.clicked.connect(self._toggle_sidebar)
+        header_layout.addWidget(btn_tutup_sidebar)
+
+        sidebar_layout.addWidget(header_widget)
+
+        # 2. Area Scroll Navigasi
+        scroll_area = QScrollArea(sidebar_frame)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setStyleSheet("""
+            QScrollArea { background-color: #0F172A; border: none; }
+            QScrollBar:vertical {
+                border: none;
+                background: #0F172A;
+                width: 6px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #334155;
+                min-height: 20px;
+                border-radius: 3px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+
+        nav_konten = QWidget()
+        nav_konten.setStyleSheet("background-color: #0F172A;")
+        nav_layout = QVBoxLayout(nav_konten)
+        nav_layout.setContentsMargins(10, 10, 10, 16)
+        nav_layout.setSpacing(4)
+
+        style_btn = """
+            QPushButton {
+                text-align: left;
+                padding: 7px 12px;
+                border-radius: 5px;
+                font-family: 'Segoe UI';
+                font-size: 10pt;
+                color: #CBD5E1;
+                background-color: transparent;
+                border: none;
+                outline: none;
+            }
+            QPushButton:hover {
+                background-color: #1E293B;
+                color: #F8FAFC;
+            }
+            QPushButton:checked {
+                background-color: #1E3A8A;
+                color: #FFFFFF;
+                font-weight: bold;
+                border-left: 4px solid #60A5FA;
+                border-top-left-radius: 2px;
+                border-bottom-left-radius: 2px;
+            }
+        """
+
+        def buat_section(kunci_sec: str, judul: str, terbuka_awal: bool = True):
+            header_btn = QPushButton(f"▼  {judul}")
+            header_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            header_btn.setToolTip("Klik untuk membuka atau menutup kelompok menu")
+            header_btn.setStyleSheet("""
+                QPushButton {
+                    text-align: left;
+                    padding: 8px 8px 6px 8px;
+                    border-radius: 5px;
+                    font-family: 'Segoe UI';
+                    font-size: 8.5pt;
+                    font-weight: bold;
+                    color: #94A3B8;
+                    background-color: transparent;
+                    border: none;
+                    outline: none;
+                    text-transform: uppercase;
+                }
+                QPushButton:hover {
+                    background-color: #1E293B;
+                    color: #F8FAFC;
+                }
+            """)
+
+            wadah_sec = QWidget()
+            wadah_sec.setStyleSheet("background-color: transparent;")
+            layout_sec = QVBoxLayout(wadah_sec)
+            layout_sec.setContentsMargins(4, 1, 0, 4)
+            layout_sec.setSpacing(2)
+
+            def aksi_toggle():
+                terbuka = not wadah_sec.isVisible()
+                wadah_sec.setVisible(terbuka)
+                tanda = "▼" if terbuka else "▶"
+                header_btn.setText(f"{tanda}  {judul}")
+
+            header_btn.clicked.connect(aksi_toggle)
+
+            if not terbuka_awal:
+                wadah_sec.hide()
+                header_btn.setText(f"▶  {judul}")
+
+            nav_layout.addWidget(header_btn)
+            nav_layout.addWidget(wadah_sec)
+
+            self.sections[kunci_sec] = {
+                "header": header_btn,
+                "wadah": wadah_sec,
+                "judul": judul,
+            }
+            return layout_sec
+
+        def tambah_tombol(lay_grup, kunci_sec: str, kunci_btn: str, label: str, aksi):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            btn.setStyleSheet(style_btn)
+            btn.clicked.connect(aksi)
+            self.grup_nav.addButton(btn)
+            self.tombol_nav[kunci_btn] = btn
+            self.pemetaan_tombol_section[kunci_btn] = kunci_sec
+            lay_grup.addWidget(btn)
+            return btn
+
+        # --- GRUP 1: DASBOR ---
+        lay_dasbor = buat_section("dasbor", "DASBOR UTAMA", terbuka_awal=True)
+        tambah_tombol(lay_dasbor, "dasbor", "ringkasan", "Ringkasan Koperasi", self._buka_layar_ringkasan)
+        tambah_tombol(lay_dasbor, "dasbor", "ringkasan_toko", "Dasbor Unit Toko", self._buka_layar_ringkasan_toko)
+
+        # --- GRUP 2: SIMPAN PINJAM ---
+        lay_sp = buat_section("simpan_pinjam", "SIMPAN PINJAM", terbuka_awal=True)
+        tambah_tombol(lay_sp, "simpan_pinjam", "anggota", "Data Anggota", self._buka_layar_anggota)
+        tambah_tombol(lay_sp, "simpan_pinjam", "simpanan", "Transaksi Simpanan", self._buka_layar_simpanan)
+        tambah_tombol(lay_sp, "simpan_pinjam", "pinjaman", "Data Pinjaman", self._buka_layar_pinjaman)
+        tambah_tombol(lay_sp, "simpan_pinjam", "angsuran", "Pembayaran Angsuran", self._buka_layar_angsuran)
+        tambah_tombol(lay_sp, "simpan_pinjam", "kartu_anggota", "Kartu Anggota", self._buka_layar_kartu_anggota)
+        tambah_tombol(lay_sp, "simpan_pinjam", "kas", "Buku Kas Operasional", self._buka_layar_kas)
+        tambah_tombol(lay_sp, "simpan_pinjam", "filter_cepat", "Filter Cepat Transaksi", self._buka_layar_filter_cepat)
+
+        # --- GRUP 3: TRANSAKSI TOKO ---
+        lay_toko = buat_section("toko", "OPERASIONAL TOKO", terbuka_awal=True)
+        tambah_tombol(lay_toko, "toko", "penjualan", "Kasir Penjualan", self._buka_layar_penjualan)
+        tambah_tombol(lay_toko, "toko", "piutang", "Piutang Pembeli", self._buka_layar_piutang)
+        tambah_tombol(lay_toko, "toko", "penitipan", "Penitipan Harian", self._buka_layar_penitipan)
+        tambah_tombol(lay_toko, "toko", "pembelian", "Pembelian (Barang Masuk)", self._buka_layar_pembelian)
+
+        # --- GRUP 4: STOK & MASTER ---
+        lay_stok = buat_section("stok_master", "STOK DAN MASTER BARANG", terbuka_awal=True)
+        tambah_tombol(lay_stok, "stok_master", "barang", "Master Barang dan Satuan", self._buka_layar_barang)
+        tambah_tombol(lay_stok, "stok_master", "pihak", "Pihak Terkait (Supplier/dll)", self._buka_layar_pihak)
+        tambah_tombol(lay_stok, "stok_master", "stok", "Daftar Stok FIFO", self._buka_layar_daftar_stok)
+        tambah_tombol(lay_stok, "stok_master", "kartu_barang", "Kartu Barang", self._buka_layar_kartu_barang)
+        tambah_tombol(lay_stok, "stok_master", "retur", "Retur Barang Toko", self._buka_layar_retur_toko)
+        tambah_tombol(lay_stok, "stok_master", "opname", "Stock Opname Toko", self._buka_layar_opname_toko)
+
+        # --- GRUP 5: LAPORAN & CLOSING SP ---
+        lay_lap_sp = buat_section("laporan_sp", "LAPORAN DAN CLOSING SP", terbuka_awal=True)
+        tambah_tombol(lay_lap_sp, "laporan_sp", "laporan_mingguan", "Laporan Mingguan SP", self._buka_layar_laporan)
+        tambah_tombol(lay_lap_sp, "laporan_sp", "laporan_bulanan", "Laporan Bulanan SP", self._buka_layar_laporan_bulanan)
+        tambah_tombol(lay_lap_sp, "laporan_sp", "laporan_tahunan", "Laporan Tahunan SP", self._buka_layar_laporan_tahunan)
+        tambah_tombol(lay_lap_sp, "laporan_sp", "closing_sp", "Closing Bulanan SP", self._buka_layar_closing)
+
+        # --- GRUP 6: LAPORAN & CLOSING TOKO ---
+        lay_lap_toko = buat_section("laporan_toko", "LAPORAN DAN CLOSING TOKO", terbuka_awal=True)
+        tambah_tombol(lay_lap_toko, "laporan_toko", "laporan_toko", "Laporan Toko Retail", self._buka_layar_laporan_toko)
+        tambah_tombol(lay_lap_toko, "laporan_toko", "closing_toko", "Closing Unit Toko", self._buka_layar_closing_toko)
+
+        # --- GRUP 7: SISTEM ---
+        lay_sistem = buat_section("sistem", "SISTEM DAN DATA", terbuka_awal=True)
+        tambah_tombol(lay_sistem, "sistem", "impor", "Impor Data Excel", self._buka_layar_impor)
+
+        nav_layout.addStretch()
+        scroll_area.setWidget(nav_konten)
+        self.sidebar_scroll_area = scroll_area
+        sidebar_layout.addWidget(scroll_area, 1)
+
+        # 3. Footer Sidebar (Aksi Backup & Keluar)
+        footer_widget = QWidget(sidebar_frame)
+        footer_widget.setStyleSheet("background-color: #0B1120; border-top: 1px solid #1E293B;")
+        footer_layout = QVBoxLayout(footer_widget)
+        footer_layout.setContentsMargins(12, 10, 12, 12)
+        footer_layout.setSpacing(6)
+
+        btn_backup = QPushButton("Backup Database", footer_widget)
+        btn_backup.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_backup.setStyleSheet("""
+            QPushButton {
+                background-color: #1E293B;
+                color: #CBD5E1;
+                border: 1px solid #334155;
+                border-radius: 5px;
+                padding: 6px 10px;
+                font-size: 9.5pt;
+                text-align: center;
+                outline: none;
+            }
+            QPushButton:hover {
+                background-color: #334155;
+                color: #FFFFFF;
+            }
+        """)
+        btn_backup.clicked.connect(self._jalankan_backup_manual)
+        footer_layout.addWidget(btn_backup)
+
+        btn_keluar = QPushButton("Keluar Aplikasi", footer_widget)
+        btn_keluar.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        btn_keluar.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #94A3B8;
+                border: none;
+                padding: 4px;
+                font-size: 9.5pt;
+                text-align: center;
+                outline: none;
+            }
+            QPushButton:hover {
+                color: #EF4444;
+            }
+        """)
+        btn_keluar.clicked.connect(self.close)
+        footer_layout.addWidget(btn_keluar)
+
+        sidebar_layout.addWidget(footer_widget)
+
+        return sidebar_frame
+
+    def _toggle_sidebar(self) -> None:
+        """Membuka atau menutup bilah samping (sidebar) navigasi secara mulus."""
+        if hasattr(self, "sidebar_frame") and self.sidebar_frame:
+            terbuka = not self.sidebar_frame.isVisible()
+            self.sidebar_frame.setVisible(terbuka)
+            if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar:
+                self.btn_toggle_sidebar.setText("☰ Menu" if terbuka else "☰ Buka Menu")
+                if terbuka:
+                    self.btn_toggle_sidebar.setStyleSheet(
+                        "background-color: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 6px; "
+                        "padding: 0 14px; min-height: 38px; font-weight: bold; color: #1E293B; outline: none;"
+                    )
+                else:
+                    self.btn_toggle_sidebar.setStyleSheet(
+                        "background-color: #2563EB; border: 1.5px solid #1D4ED8; border-radius: 6px; "
+                        "padding: 0 14px; min-height: 38px; font-weight: bold; color: #FFFFFF; outline: none;"
+                    )
+
+    def _sorot_tombol_nav(self, kunci: str) -> None:
+        """Memastikan tombol navigasi yang sesuai dengan layar aktif ditandai aktif, section dibuka, dan terlihat."""
+        btn = self.tombol_nav.get(kunci)
+        if btn:
+            if not btn.isChecked():
+                btn.setChecked(True)
+            # Buka otomatis section bila sedang tertutup (collapse)
+            kunci_sec = self.pemetaan_tombol_section.get(kunci)
+            if kunci_sec and kunci_sec in self.sections:
+                sec_data = self.sections[kunci_sec]
+                wadah = sec_data["wadah"]
+                if not wadah.isVisible():
+                    wadah.show()
+                    sec_data["header"].setText(f"▼  {sec_data['judul']}")
+            if hasattr(self, "sidebar_scroll_area") and self.sidebar_scroll_area:
+                self.sidebar_scroll_area.ensureWidgetVisible(btn)
 
     def _buat_menu(self) -> None:
         menu_bar = self.menuBar()
@@ -193,6 +608,53 @@ class JendelaUtama(QMainWindow):
         menu_transaksi.addAction(aksi_pinjaman)
         menu_transaksi.addAction(aksi_angsuran)
 
+        # Menu Toko (Terpisah dari Simpan Pinjam)
+        menu_toko = menu_bar.addMenu("&Toko")
+        aksi_ringkasan_toko = QAction("&Ringkasan Dasbor Toko", self)
+        aksi_ringkasan_toko.triggered.connect(self._buka_layar_ringkasan_toko)
+        aksi_penjualan = QAction("&Kasir Penjualan", self)
+        aksi_penjualan.triggered.connect(self._buka_layar_penjualan)
+        aksi_piutang = QAction("&Piutang Pembeli", self)
+        aksi_piutang.triggered.connect(self._buka_layar_piutang)
+        aksi_penitipan = QAction("Penitipan &Barang Harian", self)
+        aksi_penitipan.triggered.connect(self._buka_layar_penitipan)
+        aksi_pembelian = QAction("&Pembelian (Barang Masuk)", self)
+        aksi_pembelian.triggered.connect(self._buka_layar_pembelian)
+        aksi_daftar_stok = QAction("Daftar &Stok FIFO Real-Time", self)
+        aksi_daftar_stok.triggered.connect(self._buka_layar_daftar_stok)
+        aksi_master_barang = QAction("Master &Barang dan Satuan", self)
+        aksi_master_barang.triggered.connect(self._buka_layar_barang)
+        aksi_pihak = QAction("Data &Pihak (Supplier, Penitip, Pembeli)", self)
+        aksi_pihak.triggered.connect(self._buka_layar_pihak)
+
+        menu_toko.addAction(aksi_ringkasan_toko)
+        menu_toko.addSeparator()
+        menu_toko.addAction(aksi_penjualan)
+        menu_toko.addAction(aksi_piutang)
+        menu_toko.addAction(aksi_penitipan)
+        menu_toko.addSeparator()
+        menu_toko.addAction(aksi_pembelian)
+        menu_toko.addAction(aksi_daftar_stok)
+        menu_toko.addSeparator()
+
+        aksi_retur = QAction("&Retur Barang (Supplier dan Konsumen)", self)
+        aksi_retur.triggered.connect(self._buka_layar_retur_toko)
+        aksi_opname = QAction("&Stock Opname Toko", self)
+        aksi_opname.triggered.connect(self._buka_layar_opname_toko)
+        aksi_laporan_toko = QAction("&Laporan Toko", self)
+        aksi_laporan_toko.triggered.connect(self._buka_layar_laporan_toko)
+        aksi_closing_toko = QAction("&Closing Akhir Bulan Toko", self)
+        aksi_closing_toko.triggered.connect(self._buka_layar_closing_toko)
+
+        menu_toko.addAction(aksi_retur)
+        menu_toko.addAction(aksi_opname)
+        menu_toko.addAction(aksi_laporan_toko)
+        menu_toko.addAction(aksi_closing_toko)
+        menu_toko.addSeparator()
+
+        menu_toko.addAction(aksi_master_barang)
+        menu_toko.addAction(aksi_pihak)
+
         # Menu Laporan & Periode
         menu_laporan = menu_bar.addMenu("&Laporan")
         aksi_mingguan = QAction("Laporan &Mingguan", self)
@@ -236,6 +698,32 @@ class JendelaUtama(QMainWindow):
         elif aksi in ("ke_closing", "closing"):
             self._buka_layar_closing()
 
+    def _aksi_navigasi_toko(self, aksi: str) -> None:
+        if aksi in ("ke_penjualan", "buka_kasir"):
+            self._buka_layar_penjualan()
+        elif aksi in ("ke_piutang", "buka_piutang", "kelola_piutang"):
+            self._buka_layar_piutang()
+        elif aksi in ("ke_penitipan", "buka_penitipan", "setoran_penitip"):
+            self._buka_layar_penitipan()
+        elif aksi in ("ke_pembelian", "buka_pembelian", "pembelian"):
+            self._buka_layar_pembelian()
+        elif aksi in ("ke_stok", "buka_stok"):
+            self._buka_layar_daftar_stok()
+        elif aksi in ("ke_barang", "buka_barang"):
+            self._buka_layar_barang()
+        elif aksi in ("ke_pihak", "buka_pihak"):
+            self._buka_layar_pihak()
+        elif aksi in ("ke_kartu_barang", "buka_kartu_barang"):
+            self._buka_layar_kartu_barang()
+        elif aksi in ("ke_retur", "buka_retur"):
+            self._buka_layar_retur_toko()
+        elif aksi in ("ke_opname", "buka_opname"):
+            self._buka_layar_opname_toko()
+        elif aksi in ("ke_laporan_toko", "buka_laporan_toko"):
+            self._buka_layar_laporan_toko()
+        elif aksi in ("ke_closing_toko", "buka_closing_toko"):
+            self._buka_layar_closing_toko()
+
     def _on_cari_global_changed(self, teks: str) -> None:
         t = teks.strip()
         if not t:
@@ -270,70 +758,201 @@ class JendelaUtama(QMainWindow):
         anggota_id = data.get("anggota_id")
         if anggota_id:
             self.buka_kartu_anggota(anggota_id)
+            return
+
+        barang_id = data.get("barang_id")
+        if barang_id:
+            self.buka_kartu_barang(barang_id)
+            return
+
+        supplier_id = data.get("supplier_id")
+        if supplier_id:
+            self._buka_layar_pihak()
+            return
+
+        penitip_id = data.get("penitip_id")
+        if penitip_id:
+            self._buka_layar_penitipan()
+            return
+
+        pembeli_id = data.get("pembeli_id")
+        if pembeli_id:
+            self._buka_layar_piutang()
+            return
 
     def buka_kartu_anggota(self, anggota_id: int) -> None:
         self.stack.setCurrentWidget(self.layar_kartu_anggota)
         self.lbl_breadcrumb.setText("Halaman: Kartu Anggota")
+        self._sorot_tombol_nav("anggota")
         self.layar_kartu_anggota.muat_anggota(anggota_id)
 
+    def buka_kartu_barang(self, barang_id: int) -> None:
+        self.stack.setCurrentWidget(self.layar_kartu_barang)
+        self.lbl_breadcrumb.setText("Halaman: Kartu Barang")
+        self._sorot_tombol_nav("kartu_barang")
+        self.layar_kartu_barang.set_barang_id(barang_id)
+
+    def _buka_layar_kartu_barang(self) -> None:
+        self.stack.setCurrentWidget(self.layar_kartu_barang)
+        self.lbl_breadcrumb.setText("Halaman: Kartu Barang")
+        self._sorot_tombol_nav("kartu_barang")
+        self.layar_kartu_barang.muat_data()
+
+    def _buka_layar_retur_toko(self) -> None:
+        self.stack.setCurrentWidget(self.layar_retur_toko)
+        self.lbl_breadcrumb.setText("Halaman: Retur Toko")
+        self._sorot_tombol_nav("retur")
+        self.layar_retur_toko.muat_data()
+
+    def _buka_layar_opname_toko(self) -> None:
+        self.stack.setCurrentWidget(self.layar_opname_toko)
+        self.lbl_breadcrumb.setText("Halaman: Stock Opname Toko")
+        self._sorot_tombol_nav("opname")
+        self.layar_opname_toko.muat_daftar_sesi()
+
+    def _buka_layar_laporan_toko(self) -> None:
+        self.stack.setCurrentWidget(self.layar_laporan_toko)
+        self.lbl_breadcrumb.setText("Halaman: Laporan Toko")
+        self._sorot_tombol_nav("laporan_toko")
+        self.layar_laporan_toko.muat_data()
+
+    def _buka_layar_closing_toko(self) -> None:
+        self.stack.setCurrentWidget(self.layar_closing_toko)
+        self.lbl_breadcrumb.setText("Halaman: Closing Akhir Bulan Toko")
+        self._sorot_tombol_nav("closing_toko")
+        self.layar_closing_toko._periksa_periode()
+
     def _buka_layar_ringkasan(self) -> None:
-        self.stack.setCurrentWidget(self.layar_ringkasan)
+        self.stack.setCurrentIndex(0)
         self.lbl_breadcrumb.setText("Halaman: Ringkasan (Beranda)")
+        self._sorot_tombol_nav("ringkasan")
         self.layar_ringkasan.muat_data()
 
     def _buka_layar_closing(self) -> None:
         self.stack.setCurrentWidget(self.layar_closing)
         self.lbl_breadcrumb.setText("Halaman: Closing Akhir Bulan")
+        self._sorot_tombol_nav("closing_sp")
         self.layar_closing.muat_riwayat()
 
     def _buka_layar_kas(self) -> None:
         self.stack.setCurrentWidget(self.layar_kas)
         self.lbl_breadcrumb.setText("Halaman: Buku Kas Operasional")
+        self._sorot_tombol_nav("kas")
         self.layar_kas.muat_data()
 
     def _buka_layar_impor(self) -> None:
         self.stack.setCurrentWidget(self.layar_impor)
         self.lbl_breadcrumb.setText("Halaman: Impor Data Excel")
+        self._sorot_tombol_nav("impor")
+
+    def _buka_layar_kartu_anggota(self) -> None:
+        self.stack.setCurrentWidget(self.layar_kartu_anggota)
+        self.lbl_breadcrumb.setText("Halaman: Kartu Anggota")
+        self._sorot_tombol_nav("kartu_anggota")
+        if self.layar_kartu_anggota.anggota_id_aktif:
+            self.layar_kartu_anggota.muat_anggota(self.layar_kartu_anggota.anggota_id_aktif)
+        else:
+            cur = self.conn.cursor()
+            cur.execute("SELECT id FROM anggota ORDER BY id ASC LIMIT 1")
+            baris = cur.fetchone()
+            if baris:
+                self.layar_kartu_anggota.muat_anggota(baris[0])
 
     def _buka_layar_laporan(self) -> None:
         self.stack.setCurrentWidget(self.layar_laporan)
-        self.lbl_breadcrumb.setText("Halaman: Laporan Mingguan")
+        self.lbl_breadcrumb.setText("Halaman: Laporan Mingguan Simpan Pinjam")
+        self._sorot_tombol_nav("laporan_mingguan")
         self.layar_laporan.muat_data()
 
     def _buka_layar_laporan_bulanan(self) -> None:
         self.stack.setCurrentWidget(self.layar_laporan_bulanan)
-        self.lbl_breadcrumb.setText("Halaman: Laporan Bulanan")
+        self.lbl_breadcrumb.setText("Halaman: Laporan Bulanan Simpan Pinjam")
+        self._sorot_tombol_nav("laporan_bulanan")
         self.layar_laporan_bulanan.muat_data()
 
     def _buka_layar_laporan_tahunan(self) -> None:
         self.stack.setCurrentWidget(self.layar_laporan_tahunan)
-        self.lbl_breadcrumb.setText("Halaman: Laporan Tahunan")
+        self.lbl_breadcrumb.setText("Halaman: Laporan Tahunan Simpan Pinjam")
+        self._sorot_tombol_nav("laporan_tahunan")
         self.layar_laporan_tahunan.muat_data()
 
     def _buka_layar_filter_cepat(self) -> None:
         self.stack.setCurrentWidget(self.layar_filter_cepat)
         self.lbl_breadcrumb.setText("Halaman: Filter Cepat Transaksi")
+        self._sorot_tombol_nav("filter_cepat")
         self.layar_filter_cepat.muat_data()
 
     def _buka_layar_anggota(self) -> None:
         self.stack.setCurrentWidget(self.layar_anggota)
         self.lbl_breadcrumb.setText("Halaman: Data Anggota")
+        self._sorot_tombol_nav("anggota")
         self.layar_anggota.muat_data()
 
     def _buka_layar_simpanan(self) -> None:
         self.stack.setCurrentWidget(self.layar_simpanan)
         self.lbl_breadcrumb.setText("Halaman: Transaksi Simpanan")
+        self._sorot_tombol_nav("simpanan")
         self.layar_simpanan.muat_data()
 
     def _buka_layar_pinjaman(self) -> None:
         self.stack.setCurrentWidget(self.layar_pinjaman)
         self.lbl_breadcrumb.setText("Halaman: Data Pinjaman")
+        self._sorot_tombol_nav("pinjaman")
         self.layar_pinjaman.muat_data()
 
     def _buka_layar_angsuran(self) -> None:
         self.stack.setCurrentWidget(self.layar_angsuran)
         self.lbl_breadcrumb.setText("Halaman: Pembayaran Angsuran")
+        self._sorot_tombol_nav("angsuran")
         self.layar_angsuran.muat_data()
+
+    def _buka_layar_ringkasan_toko(self) -> None:
+        self.stack.setCurrentIndex(13)
+        self.lbl_breadcrumb.setText("Halaman: Dasbor Ringkasan Toko")
+        self._sorot_tombol_nav("ringkasan_toko")
+        self.layar_ringkasan_toko.muat_data()
+
+    def _buka_layar_penjualan(self) -> None:
+        self.stack.setCurrentWidget(self.layar_penjualan)
+        self.lbl_breadcrumb.setText("Halaman: Kasir Penjualan Toko")
+        self._sorot_tombol_nav("penjualan")
+        self.layar_penjualan.muat_data()
+
+    def _buka_layar_piutang(self) -> None:
+        self.stack.setCurrentWidget(self.layar_piutang)
+        self.lbl_breadcrumb.setText("Halaman: Piutang Pembeli Toko")
+        self._sorot_tombol_nav("piutang")
+        self.layar_piutang.muat_data()
+
+    def _buka_layar_penitipan(self) -> None:
+        self.stack.setCurrentWidget(self.layar_penitipan)
+        self.lbl_breadcrumb.setText("Halaman: Penitipan Barang Harian")
+        self._sorot_tombol_nav("penitipan")
+        self.layar_penitipan.muat_data()
+
+    def _buka_layar_pembelian(self) -> None:
+        self.stack.setCurrentWidget(self.layar_pembelian)
+        self.lbl_breadcrumb.setText("Halaman: Pembelian Toko")
+        self._sorot_tombol_nav("pembelian")
+        self.layar_pembelian.muat_data()
+
+    def _buka_layar_daftar_stok(self) -> None:
+        self.stack.setCurrentWidget(self.layar_daftar_stok)
+        self.lbl_breadcrumb.setText("Halaman: Daftar Stok FIFO Toko")
+        self._sorot_tombol_nav("stok")
+        self.layar_daftar_stok.muat_data()
+
+    def _buka_layar_barang(self) -> None:
+        self.stack.setCurrentWidget(self.layar_barang)
+        self.lbl_breadcrumb.setText("Halaman: Master Barang Toko")
+        self._sorot_tombol_nav("barang")
+        self.layar_barang.muat_data()
+
+    def _buka_layar_pihak(self) -> None:
+        self.stack.setCurrentWidget(self.layar_pihak)
+        self.lbl_breadcrumb.setText("Halaman: Pihak Terkait Toko")
+        self._sorot_tombol_nav("pihak")
+        self.layar_pihak.muat_data()
 
     def _pesan_fitur(self, nama_fitur: str) -> None:
         QMessageBox.information(

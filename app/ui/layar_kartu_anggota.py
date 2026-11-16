@@ -84,6 +84,7 @@ class LayarKartuAnggota(QWidget):
         
         self.lbl_pinjaman_aktif = QLabel("Tidak ada pinjaman aktif")
         self.lbl_tunggakan = QLabel("Rp 0")
+        self.lbl_utang_toko = QLabel("Rp 0")
 
         box_keuangan_layout.addWidget(QLabel("Simpanan Pokok:"), 0, 0)
         box_keuangan_layout.addWidget(self.lbl_simpanan_pokok, 0, 1)
@@ -97,6 +98,8 @@ class LayarKartuAnggota(QWidget):
         box_keuangan_layout.addWidget(self.lbl_pinjaman_aktif, 4, 1)
         box_keuangan_layout.addWidget(QLabel("Total Tunggakan:"), 5, 0)
         box_keuangan_layout.addWidget(self.lbl_tunggakan, 5, 1)
+        box_keuangan_layout.addWidget(QLabel("Utang Toko (Terpisah):"), 6, 0)
+        box_keuangan_layout.addWidget(self.lbl_utang_toko, 6, 1)
         top_grid.addWidget(box_keuangan, 1)
 
         layout.addLayout(top_grid)
@@ -188,6 +191,21 @@ class LayarKartuAnggota(QWidget):
             self.lbl_pinjaman_aktif.setText("Tidak ada pinjaman aktif")
             self.lbl_tunggakan.setText("Rp 0")
             self.lbl_tunggakan.setStyleSheet("color: #16A34A;")
+
+        # Tampilkan Utang Toko Terpisah (SPEC Modul 15 A)
+        try:
+            from app.db.repo_kartu_toko import ambil_ringkasan_piutang_anggota
+            ringk_toko = ambil_ringkasan_piutang_anggota(self.conn, anggota_id)
+            if ringk_toko and ringk_toko["total_utang_toko"] > 0:
+                self.lbl_utang_toko.setText(
+                    f"{format_rupiah(ringk_toko['total_utang_toko'])} ({ringk_toko['jumlah_nota_belum_lunas']} nota)"
+                )
+                self.lbl_utang_toko.setStyleSheet("font-weight: bold; color: #D97706;")
+            else:
+                self.lbl_utang_toko.setText("Rp 0 (Lunas / Tidak ada utang)")
+                self.lbl_utang_toko.setStyleSheet("color: #16A34A;")
+        except Exception:
+            self.lbl_utang_toko.setText("-")
 
         # Tampilkan Riwayat Transaksi
         riwayat = data["riwayat_transaksi"]

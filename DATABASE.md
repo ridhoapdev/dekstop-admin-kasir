@@ -268,3 +268,494 @@ CREATE VIRTUAL TABLE anggota_cari USING fts5(nama, no_anggota, nik_karyawan, con
 5. **Status angsuran**: lunas jika pokok & jasa terbayar penuh; sebagian jika ada pembayaran tapi kurang; telat jika lewat jatuh tempo dan belum lunas.
 6. **Saldo kas** = saldo awal periode + `SUM(masuk)` - `SUM(keluar)`.
 7. **Periode terkunci**: tolak INSERT/UPDATE pada transaksi dengan `periode` yang sudah ada di `closing` berstatus `tertutup`.
+
+---
+
+## Modul 13: Fondasi Unit Toko (user_version = 4)
+
+### supplier
+```sql
+CREATE TABLE supplier (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nama TEXT NOT NULL,
+  no_hp TEXT,
+  alamat TEXT,
+  catatan TEXT,
+  aktif INTEGER NOT NULL DEFAULT 1,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_supplier_nama ON supplier(nama);
+```
+
+### penitip
+```sql
+CREATE TABLE penitip (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nama TEXT NOT NULL,
+  no_hp TEXT,
+  alamat TEXT,
+  catatan TEXT,
+  aktif INTEGER NOT NULL DEFAULT 1,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_penitip_nama ON penitip(nama);
+```
+
+### pembeli
+```sql
+CREATE TABLE pembeli (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nama TEXT NOT NULL,
+  no_hp TEXT,
+  alamat TEXT,
+  catatan TEXT,
+  aktif INTEGER NOT NULL DEFAULT 1,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_pembeli_nama ON pembeli(nama);
+```
+
+### barang
+```sql
+CREATE TABLE barang (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kode TEXT NOT NULL UNIQUE,
+  nama TEXT NOT NULL,
+  kategori TEXT,
+  satuan_dasar TEXT NOT NULL,
+  kata_kunci TEXT,
+  harga_jual INTEGER NOT NULL DEFAULT 0,
+  jenis_kepemilikan TEXT NOT NULL DEFAULT 'milik_koperasi' CHECK (jenis_kepemilikan IN ('milik_koperasi', 'titipan')),
+  penitip_id INTEGER REFERENCES penitip(id),
+  stok_minimum INTEGER NOT NULL DEFAULT 0,
+  stok_saat_ini INTEGER NOT NULL DEFAULT 0,
+  aktif INTEGER NOT NULL DEFAULT 1,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_barang_nama ON barang(nama);
+CREATE INDEX idx_barang_kode ON barang(kode);
+```
+
+### satuan_barang (Konversi Melekat pada Barang)
+```sql
+CREATE TABLE satuan_barang (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  nama_satuan TEXT NOT NULL,
+  isi_dalam_satuan_dasar INTEGER NOT NULL CHECK (isi_dalam_satuan_dasar > 0),
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (barang_id, nama_satuan)
+);
+CREATE INDEX idx_satuan_barang ON satuan_barang(barang_id);
+```
+
+### kas_toko_transaksi (TERPISAH dari Kas Simpan Pinjam)
+```sql
+CREATE TABLE kas_toko_transaksi (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tanggal TEXT NOT NULL,
+  keterangan TEXT NOT NULL,
+  masuk INTEGER NOT NULL DEFAULT 0,
+  keluar INTEGER NOT NULL DEFAULT 0,
+  sumber TEXT NOT NULL CHECK (sumber IN ('modal_awal', 'pembelian', 'bayar_hutang', 'penjualan', 'manual')),
+  ref_tabel TEXT,
+  ref_id INTEGER,
+  membalik_id INTEGER REFERENCES kas_toko_transaksi(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  CHECK ((masuk > 0 AND keluar = 0) OR (keluar > 0 AND masuk = 0))
+);
+CREATE INDEX idx_kas_toko_tanggal ON kas_toko_transaksi(tanggal);
+```
+
+### pembelian_faktur
+```sql
+CREATE TABLE pembelian_faktur (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  no_faktur TEXT NOT NULL UNIQUE,
+  supplier_id INTEGER NOT NULL REFERENCES supplier(id),
+  tanggal TEXT NOT NULL,
+  status_bayar TEXT NOT NULL CHECK (status_bayar IN ('tunai', 'belum_dibayar')),
+  total_biaya INTEGER NOT NULL DEFAULT 0,
+  keterangan TEXT,
+  membalik_id INTEGER REFERENCES pembelian_faktur(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_faktur_tanggal ON pembelian_faktur(tanggal);
+CREATE INDEX idx_faktur_supplier ON pembelian_faktur(supplier_id);
+```
+
+### pembelian_detail (Snapshot Konversi)
+```sql
+CREATE TABLE pembelian_detail (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  faktur_id INTEGER NOT NULL REFERENCES pembelian_faktur(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  jumlah_input INTEGER NOT NULL CHECK (jumlah_input > 0),
+  satuan_input TEXT NOT NULL,
+  isi_per_satuan INTEGER NOT NULL CHECK (isi_per_satuan > 0),
+  jumlah_dasar INTEGER NOT NULL CHECK (jumlah_dasar > 0),
+  harga_per_satuan_input INTEGER NOT NULL CHECK (harga_per_satuan_input >= 0),
+  total_biaya INTEGER NOT NULL CHECK (total_biaya >= 0)
+);
+CREATE INDEX idx_detail_faktur ON pembelian_detail(faktur_id);
+CREATE INDEX idx_detail_barang ON pembelian_detail(barang_id);
+```
+
+### pembayaran_hutang_supplier
+```sql
+CREATE TABLE pembayaran_hutang_supplier (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  faktur_id INTEGER NOT NULL REFERENCES pembelian_faktur(id),
+  tanggal TEXT NOT NULL,
+  jumlah_bayar INTEGER NOT NULL CHECK (jumlah_bayar > 0),
+  keterangan TEXT,
+  membalik_id INTEGER REFERENCES pembayaran_hutang_supplier(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+### lot_stok (FIFO)
+```sql
+CREATE TABLE lot_stok (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  asal TEXT NOT NULL CHECK (asal IN ('pembelian', 'titipan', 'penyesuaian', 'koreksi')),
+  ref_tabel TEXT,
+  ref_id INTEGER,
+  tanggal_masuk TEXT NOT NULL,
+  supplier_id INTEGER REFERENCES supplier(id),
+  penitip_id INTEGER REFERENCES penitip(id),
+  qty_awal INTEGER NOT NULL CHECK (qty_awal >= 0),
+  qty_sisa INTEGER NOT NULL CHECK (qty_sisa >= 0),
+  total_biaya_awal INTEGER NOT NULL CHECK (total_biaya_awal >= 0),
+  biaya_sisa INTEGER NOT NULL CHECK (biaya_sisa >= 0),
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_lot_barang ON lot_stok(barang_id, tanggal_masuk, id);
+```
+
+### mutasi_stok (Buku Mutasi Append-Only)
+```sql
+CREATE TABLE mutasi_stok (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  lot_id INTEGER REFERENCES lot_stok(id),
+  tanggal TEXT NOT NULL,
+  jenis TEXT NOT NULL CHECK (jenis IN (
+    'masuk', 'keluar_jual', 'retur_supplier', 'retur_penitip',
+    'rusak', 'hilang', 'kedaluwarsa', 'penyesuaian_opname', 'koreksi'
+  )),
+  qty INTEGER NOT NULL,
+  biaya INTEGER NOT NULL DEFAULT 0,
+  ref_tabel TEXT,
+  ref_id INTEGER,
+  membalik_id INTEGER REFERENCES mutasi_stok(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_mutasi_barang ON mutasi_stok(barang_id, tanggal);
+CREATE INDEX idx_mutasi_lot ON mutasi_stok(lot_id);
+```
+
+### View Transaksi Efektif Toko
+- `v_mutasi_stok_efektif`
+- `v_pembelian_faktur_efektif`
+- `v_kas_toko_efektif`
+- `v_penjualan_efektif`
+- `v_penitipan_efektif`
+- `v_pembayaran_piutang_efektif`
+- `v_pembayaran_penitip_efektif`
+
+---
+
+## Modul 14: Penjualan, Piutang Pembeli, dan Titipan Harian (PRAGMA user_version = 5)
+
+### pembeli (Diperkaya kolom anggota_id)
+```sql
+CREATE TABLE pembeli (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nama TEXT NOT NULL,
+  no_hp TEXT,
+  alamat TEXT,
+  catatan TEXT,
+  anggota_id INTEGER REFERENCES anggota(id),
+  aktif INTEGER NOT NULL DEFAULT 1 CHECK (aktif IN (0, 1)),
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX idx_pembeli_nama ON pembeli(nama);
+CREATE INDEX idx_pembeli_anggota ON pembeli(anggota_id);
+```
+
+### penitipan & penitipan_baris
+```sql
+CREATE TABLE penitipan (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tanggal TEXT NOT NULL,
+  penitip_id INTEGER NOT NULL REFERENCES penitip(id),
+  status TEXT NOT NULL DEFAULT 'aktif' CHECK (status IN ('aktif', 'selesai', 'batal')),
+  catatan TEXT,
+  membalik_id INTEGER REFERENCES penitipan(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE penitipan_baris (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  penitipan_id INTEGER NOT NULL REFERENCES penitipan(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  jumlah_input INTEGER NOT NULL CHECK (jumlah_input > 0),
+  satuan_input TEXT NOT NULL,
+  isi_per_satuan INTEGER NOT NULL CHECK (isi_per_satuan > 0),
+  jumlah_dasar INTEGER NOT NULL CHECK (jumlah_dasar > 0),
+  harga_titip_satuan_dasar INTEGER NOT NULL CHECK (harga_titip_satuan_dasar >= 0),
+  harga_jual_satuan_dasar INTEGER NOT NULL CHECK (harga_jual_satuan_dasar >= 0),
+  lot_id INTEGER NOT NULL REFERENCES lot_stok(id),
+  selesai INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+### pembayaran_penitip & penyelesaian_titipan_baris
+```sql
+CREATE TABLE pembayaran_penitip (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  penitip_id INTEGER NOT NULL REFERENCES penitip(id),
+  tanggal TEXT NOT NULL,
+  total_laku_terbayar INTEGER NOT NULL CHECK (total_laku_terbayar >= 0),
+  kas_toko_transaksi_id INTEGER REFERENCES kas_toko_transaksi(id),
+  keterangan TEXT,
+  membalik_id INTEGER REFERENCES pembayaran_penitip(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE penyelesaian_titipan_baris (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pembayaran_penitip_id INTEGER NOT NULL REFERENCES pembayaran_penitip(id),
+  penitipan_baris_id INTEGER NOT NULL REFERENCES penitipan_baris(id),
+  lot_id INTEGER NOT NULL REFERENCES lot_stok(id),
+  qty_terjual INTEGER NOT NULL DEFAULT 0,
+  harga_titip INTEGER NOT NULL DEFAULT 0,
+  total_bayar INTEGER NOT NULL DEFAULT 0,
+  qty_retur INTEGER NOT NULL DEFAULT 0,
+  qty_tinggal INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+### penjualan, penjualan_baris, dan penjualan_lot
+```sql
+CREATE TABLE penjualan (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  no_nota TEXT NOT NULL UNIQUE,
+  tanggal TEXT NOT NULL,
+  pembeli_id INTEGER NOT NULL REFERENCES pembeli(id),
+  nama_pembeli_nota TEXT,
+  metode TEXT NOT NULL CHECK (metode IN ('tunai', 'kredit')),
+  total INTEGER NOT NULL CHECK (total >= 0),
+  jatuh_tempo TEXT,
+  status TEXT NOT NULL DEFAULT 'selesai' CHECK (status IN ('selesai', 'dibatalkan')),
+  membalik_id INTEGER REFERENCES penjualan(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE penjualan_baris (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  penjualan_id INTEGER NOT NULL REFERENCES penjualan(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  jumlah_input INTEGER NOT NULL CHECK (jumlah_input > 0),
+  satuan_input TEXT NOT NULL,
+  isi_per_satuan INTEGER NOT NULL CHECK (isi_per_satuan > 0),
+  jumlah_dasar INTEGER NOT NULL CHECK (jumlah_dasar > 0),
+  harga_jual_satuan_dasar INTEGER NOT NULL CHECK (harga_jual_satuan_dasar >= 0),
+  total_baris INTEGER NOT NULL CHECK (total_baris >= 0),
+  hpp_total INTEGER NOT NULL DEFAULT 0,
+  laba INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE penjualan_lot (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  penjualan_baris_id INTEGER NOT NULL REFERENCES penjualan_baris(id),
+  lot_id INTEGER NOT NULL REFERENCES lot_stok(id),
+  qty INTEGER NOT NULL CHECK (qty > 0),
+  biaya INTEGER NOT NULL CHECK (biaya >= 0),
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+### pembayaran_piutang & alokasi_piutang
+```sql
+CREATE TABLE pembayaran_piutang (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pembeli_id INTEGER NOT NULL REFERENCES pembeli(id),
+  tanggal TEXT NOT NULL,
+  jumlah INTEGER NOT NULL CHECK (jumlah > 0),
+  kas_toko_transaksi_id INTEGER REFERENCES kas_toko_transaksi(id),
+  keterangan TEXT,
+  membalik_id INTEGER REFERENCES pembayaran_piutang(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE alokasi_piutang (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pembayaran_id INTEGER NOT NULL REFERENCES pembayaran_piutang(id),
+  penjualan_id INTEGER NOT NULL REFERENCES penjualan(id),
+  jumlah INTEGER NOT NULL CHECK (jumlah > 0),
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+---
+
+## Modul 15: Kartu Barang, Retur, Stock Opname, Laporan Toko, Closing Toko (PRAGMA user_version = 6)
+
+### retur_supplier & retur_supplier_baris
+```sql
+CREATE TABLE retur_supplier (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  no_retur TEXT NOT NULL UNIQUE,
+  tanggal TEXT NOT NULL,
+  pembelian_faktur_id INTEGER REFERENCES pembelian_faktur(id),
+  supplier_id INTEGER NOT NULL REFERENCES supplier(id),
+  total_retur INTEGER NOT NULL CHECK (total_retur >= 0),
+  jenis_kompensasi TEXT NOT NULL CHECK (jenis_kompensasi IN ('potong_hutang', 'kas_masuk')),
+  kas_toko_transaksi_id INTEGER REFERENCES kas_toko_transaksi(id),
+  alasan TEXT,
+  membalik_id INTEGER REFERENCES retur_supplier(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE retur_supplier_baris (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  retur_supplier_id INTEGER NOT NULL REFERENCES retur_supplier(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  lot_id INTEGER NOT NULL REFERENCES lot_stok(id),
+  jumlah_dasar INTEGER NOT NULL CHECK (jumlah_dasar > 0),
+  biaya_per_satuan_dasar INTEGER NOT NULL CHECK (biaya_per_satuan_dasar >= 0),
+  total_biaya INTEGER NOT NULL CHECK (total_biaya >= 0),
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+### retur_penjualan & retur_penjualan_baris
+```sql
+CREATE TABLE retur_penjualan (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  no_retur TEXT NOT NULL UNIQUE,
+  tanggal TEXT NOT NULL,
+  penjualan_id INTEGER NOT NULL REFERENCES penjualan(id),
+  pembeli_id INTEGER NOT NULL REFERENCES pembeli(id),
+  total_retur INTEGER NOT NULL CHECK (total_retur >= 0),
+  jenis_kompensasi TEXT NOT NULL CHECK (jenis_kompensasi IN ('kembali_kas', 'potong_piutang')),
+  kas_toko_transaksi_id INTEGER REFERENCES kas_toko_transaksi(id),
+  alasan TEXT,
+  membalik_id INTEGER REFERENCES retur_penjualan(id),
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE retur_penjualan_baris (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  retur_penjualan_id INTEGER NOT NULL REFERENCES retur_penjualan(id),
+  penjualan_baris_id INTEGER NOT NULL REFERENCES penjualan_baris(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  lot_id INTEGER NOT NULL REFERENCES lot_stok(id),
+  jumlah_dasar INTEGER NOT NULL CHECK (jumlah_dasar > 0),
+  harga_jual_satuan_dasar INTEGER NOT NULL CHECK (harga_jual_satuan_dasar >= 0),
+  total_harga INTEGER NOT NULL CHECK (total_harga >= 0),
+  hpp_satuan_dasar INTEGER NOT NULL DEFAULT 0,
+  hpp_total INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+```
+
+### opname_sesi & opname_barang
+```sql
+CREATE TABLE opname_sesi (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kode_opname TEXT NOT NULL UNIQUE,
+  tanggal TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'final')),
+  catatan TEXT,
+  total_selisih_kurang_qty INTEGER NOT NULL DEFAULT 0,
+  total_selisih_kurang_nilai INTEGER NOT NULL DEFAULT 0,
+  total_selisih_lebih_qty INTEGER NOT NULL DEFAULT 0,
+  total_selisih_lebih_nilai INTEGER NOT NULL DEFAULT 0,
+  periode TEXT NOT NULL,
+  terkunci INTEGER NOT NULL DEFAULT 0,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE opname_barang (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  opname_sesi_id INTEGER NOT NULL REFERENCES opname_sesi(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  stok_sistem INTEGER NOT NULL,
+  stok_fisik INTEGER NOT NULL,
+  selisih_qty INTEGER NOT NULL,
+  harga_satuan_dasar INTEGER NOT NULL DEFAULT 0,
+  selisih_nilai INTEGER NOT NULL DEFAULT 0,
+  catatan TEXT,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (opname_sesi_id, barang_id)
+);
+```
+
+### closing_toko & closing_stok_barang
+```sql
+CREATE TABLE closing_toko (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  periode TEXT NOT NULL UNIQUE,
+  tanggal TEXT NOT NULL,
+  kas_toko_awal INTEGER NOT NULL DEFAULT 0,
+  kas_toko_masuk INTEGER NOT NULL DEFAULT 0,
+  kas_toko_keluar INTEGER NOT NULL DEFAULT 0,
+  kas_toko_akhir INTEGER NOT NULL DEFAULT 0,
+  total_penjualan INTEGER NOT NULL DEFAULT 0,
+  total_hpp INTEGER NOT NULL DEFAULT 0,
+  laba_kotor INTEGER NOT NULL DEFAULT 0,
+  kerugian_persediaan INTEGER NOT NULL DEFAULT 0,
+  nilai_persediaan INTEGER NOT NULL DEFAULT 0,
+  total_piutang INTEGER NOT NULL DEFAULT 0,
+  total_hutang_supplier INTEGER NOT NULL DEFAULT 0,
+  total_hutang_penitip INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'closed' CHECK (status IN ('closed', 'dibuka_kembali')),
+  catatan TEXT,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE closing_stok_barang (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  closing_toko_id INTEGER NOT NULL REFERENCES closing_toko(id),
+  barang_id INTEGER NOT NULL REFERENCES barang(id),
+  stok_akhir_dasar INTEGER NOT NULL,
+  nilai_persediaan INTEGER NOT NULL,
+  dibuat_pada TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE (closing_toko_id, barang_id)
+);
+```
+
+### View Transaksi Efektif Modul 15
+- `v_retur_supplier_efektif`
+- `v_retur_penjualan_efektif`
+
+
+

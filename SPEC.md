@@ -119,6 +119,79 @@ Membuka kembali periode terkunci: hanya lewat menu khusus dengan PIN/password, t
 - Backup otomatis (detail di `RULES.md`).
 - Draft otomatis dan memori posisi terakhir (detail di `RULES.md`).
 
+### 4.11 Fondasi Unit Toko (Modul 13)
+- **Master Data**:
+  - `barang`: kode, nama, kategori, satuan_dasar, kata_kunci, harga_jual default, jenis_kepemilikan (`milik_koperasi` / `titipan`), penitip_id, stok_minimum, stok_saat_ini (cache), aktif. Tanpa hapus permanen jika sudah ada transaksi.
+  - `satuan_barang`: Konversi melekat per barang (Dilarang tabel konversi global). Kolom: barang_id, nama_satuan, isi_dalam_satuan_dasar (integer > 0). Otomatis terkunci jika sudah pernah dipakai transaksi.
+  - Pihak Terkait: `supplier`, `penitip`, `pembeli` (nama, no_hp, alamat, catatan, aktif).
+  - Peringatan nama mirip (fuzzy match) saat menambah entitas baru.
+  - Pencarian barang toleran huruf besar-kecil dan kata kunci / kode / nama.
+- **Pembelian (Barang Masuk)**:
+  - Faktur multi-baris: no_faktur, supplier_id, tanggal, status_bayar (`tunai` / `belum_dibayar`).
+  - Baris menyimpan snapshot konversi: jumlah_input, satuan_input, isi_per_satuan, jumlah_dasar, harga_per_satuan_input, total_biaya.
+  - Tampilan live konversi ("3 dus = 60 pcs") dan total biaya.
+  - Hutang dagang supplier dan pencatatan pelunasan / cicilan via kas toko.
+- **Stok FIFO Real-Time & Kas Toko**:
+  - `lot_stok`: barang_id, asal, ref_tabel, ref_id, tanggal_masuk, supplier_id/penitip_id, qty_awal, qty_sisa, total_biaya_awal, biaya_sisa. Urut pemakaian selalu tanggal masuk terlama (FIFO) lalu id terkecil.
+  - `mutasi_stok`: append-only (masuk, keluar_jual, retur_supplier, retur_penitip, rusak, hilang, kedaluwarsa, penyesuaian_opname, koreksi).
+  - Kas Toko Mandiri: `kas_toko_transaksi` TERPISAH dari kas simpan pinjam.
+  - Pembulatan: selisih sisa diserap pada pemakaian terakhir lot.
+  - Satu fungsi layanan tunggal `app/layanan/layanan_stok.py` untuk perubahan stok.
+  - Rekonsiliasi stok: `stok_saat_ini == SUM(mutasi) == SUM(qty_sisa lot)`.
+  - Opsi stok minus (default blokir; jika diizinkan, restock menutup minus).
+  - Pembalik pembelian: hanya jika lot belum terpakai.
+
+### 4.12 Modul 14: Penjualan Kasir, Piutang Pembeli, dan Titipan Harian (Unit Toko)
+- **Master Pembeli**:
+  - Kolom: nama, no_hp, alamat, catatan, relasi opsional `anggota_id` (hubungan ke anggota simpan pinjam).
+  - Pembeli default "Umum" untuk transaksi tunai.
+  - Penjualan kredit mewajibkan pembeli terdaftar (bukan "Umum").
+  - Pengaturan peringatan batas utang pembeli dan peringatan nota jatuh tempo (hanya peringatan ramah, tanpa memblokir).
+- **Kasir Penjualan Cepat**:
+  - Input cepat keyboard-friendly (pencarian nama/kode/kata kunci, Enter masukkan keranjang, Tab pindah kolom).
+  - Menampilkan konversi satuan langsung, sisa stok, subtotal, dan total.
+  - Tombol aksi besar **TUNAI** dan **KREDIT**.
+  - Tunai: menampilkan kolom uang diterima dan kembalian, langsung mencatat kas toko masuk.
+  - Kredit: tidak menulis kas toko, otomatis membuat piutang dengan tanggal jatuh tempo (+1 bulan default).
+  - Berkurang stok secara atomik real-time menggunakan layanan stok FIFO Modul 13 dengan pencatatan `penjualan_lot` untuk presisi pembalik.
+  - Pembalik nota: mengembalikan stok ke lot asal, membalik kas masuk / piutang, dan membalik kewajiban penitip.
+- **Piutang Pembeli**:
+  - Alokasi pembayaran piutang otomatis ke nota kredit tertua terlebih dahulu (FIFO).
+  - Pembayaran piutang mencatat arus kas toko masuk.
+  - Layar daftar pembeli, saldo utang, status jatuh tempo, rincian nota kredit, dan tombol "Terima Pembayaran".
+- **Titipan Harian**:
+  - Lot penitipan harian fleksibel (harga titip dan harga jual dicatat per penitipan dan per hari).
+  - Barang titipan terikat ke 1 penitip, nama barang otomatis menyertakan nama penitip.
+  - Kewajiban ke penitip tercipta saat laku (terjual), baik tunai maupun kredit.
+  - Layar setoran sore hari: pembayaran hasil laku (kas toko keluar, konfirmasi kas minus jika perlu), dan opsi tindakan sisa barang (retur fisik atau tetap tinggal di toko).
+- **Dasbor Ringkasan Toko**:
+  - 6 kartu metrik: Penjualan Hari Ini, Laba Kotor Hari Ini, Posisi Kas Toko Saat Ini, Total Piutang Pembeli, Hutang ke Penitip Hari Ini, dan Perhatian/Peringatan (nota telat & stok menipis).
+  - Tombol aksi cepat besar menuju Kasir, Piutang, Penitipan, Pembelian, dan Stok.
+
+### 4.13 Modul 15: Kartu Barang dan Pencarian Global, Retur, Stock Opname, Laporan Toko, dan Closing Toko
+- **Pencarian Cepat Global & Kartu Terpadu**:
+  - Pencarian cepat di bagian atas menemukan Barang, Supplier, Penitip, Pembeli dengan label jenis jelas.
+  - Kartu Barang: info dasar, stok dasar + representasi satuan besar ("47 pcs = 2 dus + 7 pcs"), nilai persediaan, urutan lot FIFO aktif, laba per periode, riwayat kartu stok dengan saldo berjalan, supplier terakhir, pembeli terbanyak, tombol cepat tambah stok / rusak / ubah harga.
+  - Kartu Supplier, Penitip, Pembeli: hutang dagang, barang titipan & laba koperasi, utang pembeli & nota jatuh tempo.
+  - Kartu Anggota SP menampilkan ringkasan utang toko secara terpisah (tidak mencemari saldo simpan pinjam).
+- **Transaksi Retur**:
+  - Retur ke supplier: validasi sisa lot stok, memotong hutang atau kas masuk.
+  - Retur penjualan: mengembalikan kuantitas ke lot asal FIFO dengan biaya sama persis, pengembalian uang atau pemotongan piutang.
+  - Validasi ketat: retur tidak boleh melebihi sisa lot atau kuantitas faktur/nota asal.
+- **Penyesuaian Manual & Stock Opname**:
+  - Rusak, hilang, kedaluwarsa memotong lot FIFO terlama dan diakui sebagai kerugian persediaan.
+  - Sesi stock opname berkala dengan fitur auto-save draft.
+  - Finalisasi opname: selisih kurang memotong lot FIFO terlama (kerugian persediaan), selisih lebih membentuk lot baru asal penyesuaian. Mengunci sesi permanen.
+- **Laporan Toko Komprehensif**:
+  - Rekapitulasi per barang: stok awal dihitung dinamis dari SUM mutasi sebelum periode, stok awal + masuk - keluar +/- penyesuaian = stok akhir. Total penjualan, HPP, laba kotor, margin %.
+  - Rincian transaksi, laporan tahunan 12 bulan (gabungan snapshot closing vs sementara), laporan barang tidak bergerak (> 30 hari), dan stok menipis.
+  - Ekspor Excel (.xlsx) dengan formula/angka asli dan PDF (.pdf) rapi.
+- **Closing Toko Bulanan**:
+  - Terpisah dari closing simpan pinjam.
+  - Pemeriksaan pra-closing ketat (opname draft, setoran penitip aktif, rekonsiliasi stok = mutasi = lot, rekonsiliasi piutang, kas toko).
+  - Snapshot finansial dan persediaan barang per periode, mengunci seluruh transaksi toko pada periode tersebut.
+  - Pembukaan kembali closing (reopen) hanya dengan otorisasi PIN keamanan.
+
 ## 5. Prinsip Tampilan
 
 - Bahasa Indonesia, istilah koperasi yang lazim (bukan istilah teknis).
@@ -148,6 +221,10 @@ Membuka kembali periode terkunci: hanya lewat menu khusus dengan PIN/password, t
 9. Closing bulanan + kunci periode
 10. Impor Excel
 11. Pengemasan `.exe` + uji di PC i3/4GB
+12. Demo & kumpulkan masukan
+13. Fondasi Unit Toko (barang, satuan, pihak, pembelian, stok FIFO real-time)
+14. Penjualan Kasir, Piutang Pembeli, dan Titipan Harian (Unit Toko)
+15. Kartu Barang dan Pencarian Global, Retur, Stock Opname, Laporan Toko, dan Closing Toko
 
 Setiap modul selesai harus: berjalan, ada tes dasar untuk perhitungan uang, dan `PROGRESS.md` diperbarui.
 

@@ -9,7 +9,7 @@ Prinsip antarmuka:
 """
 import sqlite3
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
+    QWidget, QFrame, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QGroupBox, QDialog, QTableWidget, QTableWidgetItem,
     QHeaderView, QMessageBox
 )
@@ -51,6 +51,10 @@ class LayarRingkasan(QWidget):
 
         btn_segarkan = QPushButton("Segarkan", self)
         btn_segarkan.setMinimumHeight(38)
+        btn_segarkan.setStyleSheet(
+            "background-color: #EFF6FF; color: #1D4ED8; border: 1.5px solid #93C5FD; "
+            "font-weight: bold; border-radius: 6px; padding: 0 16px;"
+        )
         btn_segarkan.clicked.connect(self.muat_data)
         header_layout.addWidget(btn_segarkan)
 
@@ -101,6 +105,10 @@ class LayarRingkasan(QWidget):
         self.lbl_tempo_info.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
         btn_lihat_tempo = QPushButton("Lihat Daftar", box_tempo)
         btn_lihat_tempo.setMinimumHeight(38)
+        btn_lihat_tempo.setStyleSheet(
+            "background-color: #EFF6FF; color: #1D4ED8; border: 1.5px solid #93C5FD; "
+            "font-weight: bold; border-radius: 6px; padding: 0 16px;"
+        )
         btn_lihat_tempo.clicked.connect(self._lihat_daftar_tempo)
         layout_tempo.addWidget(self.lbl_tempo_info)
         layout_tempo.addStretch()
@@ -116,7 +124,10 @@ class LayarRingkasan(QWidget):
         self.lbl_menunggak_info.setStyleSheet("color: #DC2626;")
         btn_lihat_menunggak = QPushButton("Lihat Daftar", box_tunggakan)
         btn_lihat_menunggak.setMinimumHeight(38)
-        btn_lihat_menunggak.setStyleSheet("color: #DC2626;")
+        btn_lihat_menunggak.setStyleSheet(
+            "background-color: #FEE2E2; color: #991B1B; border: 1.5px solid #F87171; "
+            "font-weight: bold; border-radius: 6px; padding: 0 16px;"
+        )
         btn_lihat_menunggak.clicked.connect(self._lihat_daftar_menunggak)
         layout_tunggakan.addWidget(self.lbl_menunggak_info)
         layout_tunggakan.addStretch()
@@ -171,18 +182,30 @@ class LayarRingkasan(QWidget):
         self.muat_data()
 
     def _buat_kartu_metrik(self, judul: str, nilai_awal: str, warna_teks: str, bg_color: str) -> dict:
-        box = QWidget(self)
-        box.setStyleSheet(f"background-color: {bg_color}; border-radius: 8px; border: none;")
+        box = QFrame(self)
+        box.setObjectName("KartuMetrikKoperasi")
+        box.setStyleSheet(
+            f"QFrame#KartuMetrikKoperasi {{ "
+            f"    background-color: {bg_color}; "
+            f"    border-radius: 8px; "
+            f"    border: none; "
+            f"}} "
+            f"QLabel {{ "
+            f"    border: none; "
+            f"    background: transparent; "
+            f"}}"
+        )
         box_layout = QVBoxLayout(box)
-        box_layout.setContentsMargins(16, 14, 16, 14)
+        box_layout.setContentsMargins(18, 14, 18, 14)
+        box_layout.setSpacing(6)
 
         lbl_j = QLabel(judul, box)
         lbl_j.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        lbl_j.setStyleSheet("color: #6B7280;")
+        lbl_j.setStyleSheet("color: #6B7280; font-size: 10pt; font-weight: bold;")
 
         lbl_v = QLabel(nilai_awal, box)
         lbl_v.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        lbl_v.setStyleSheet(f"color: {warna_teks};")
+        lbl_v.setStyleSheet(f"color: {warna_teks}; font-size: 18pt; font-weight: bold;")
 
         box_layout.addWidget(lbl_j)
         box_layout.addWidget(lbl_v)
@@ -244,6 +267,42 @@ class LayarRingkasan(QWidget):
                 "background-color: #FEE2E2; color: #991B1B; padding: 8px 12px; border-radius: 4px; border: 1px solid #FCA5A5;"
             )
             self.layout_pengingat.addWidget(banner_closing)
+
+        # Pengingat Toko: Closing Toko & Opname Toko (SPEC Modul 15 E)
+        try:
+            from datetime import date
+            import calendar
+            thn, bln = date.today().year, date.today().month
+            bln_lalu = bln - 1 if bln > 1 else 12
+            thn_lalu = thn if bln > 1 else thn - 1
+            periode_lalu = f"{thn_lalu:04d}-{bln_lalu:02d}"
+            nama_bln_lalu = f"{calendar.month_name[bln_lalu]} {thn_lalu}"
+
+            cur = self.conn.cursor()
+            cur.execute("SELECT 1 FROM closing_toko WHERE periode = ? AND status = 'closed';", (periode_lalu,))
+            if not cur.fetchone():
+                banner_cl_toko = QLabel(
+                    f"<b>Perhatian Unit Toko:</b> Closing toko periode {nama_bln_lalu} belum dilakukan.",
+                    self.box_pengingat
+                )
+                banner_cl_toko.setStyleSheet(
+                    "background-color: #FEE2E2; color: #991B1B; padding: 8px 12px; border-radius: 4px; border: 1px solid #FCA5A5;"
+                )
+                self.layout_pengingat.addWidget(banner_cl_toko)
+
+            periode_ini = f"{thn:04d}-{bln:02d}"
+            cur.execute("SELECT 1 FROM opname_sesi WHERE periode = ? AND status = 'final';", (periode_ini,))
+            if not cur.fetchone():
+                banner_opname = QLabel(
+                    f"<b>Pengingat Unit Toko:</b> Stock opname toko bulan ini belum dilakukan atau belum difinalkan.",
+                    self.box_pengingat
+                )
+                banner_opname.setStyleSheet(
+                    "background-color: #FEF3C7; color: #92400E; padding: 8px 12px; border-radius: 4px; border: 1px solid #FCD34D;"
+                )
+                self.layout_pengingat.addWidget(banner_opname)
+        except Exception:
+            pass
 
     def _lihat_daftar_tempo(self) -> None:
         daftar = self.data_dashboard.get("daftar_tempo_minggu_ini", [])

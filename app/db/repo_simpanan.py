@@ -13,13 +13,27 @@ from app.util.format import format_rupiah
 
 
 def cek_periode_terkunci(conn: sqlite3.Connection, periode: str) -> bool:
-    """Mengecek apakah periode 'YYYY-MM' sudah di-closing (status = 'tertutup')."""
+    """Mengecek apakah periode 'YYYY-MM' sudah di-closing di simpan pinjam atau toko."""
     cur = conn.cursor()
     cur.execute(
         "SELECT 1 FROM closing WHERE periode = ? AND status = 'tertutup' LIMIT 1;",
         (periode,)
     )
-    return cur.fetchone() is not None
+    if cur.fetchone() is not None:
+        return True
+
+    # Cek juga closing toko
+    try:
+        cur.execute(
+            "SELECT 1 FROM closing_toko WHERE periode = ? AND status = 'closed' LIMIT 1;",
+            (periode,)
+        )
+        if cur.fetchone() is not None:
+            return True
+    except sqlite3.OperationalError:
+        pass
+
+    return False
 
 
 def hitung_saldo_simpanan_anggota(

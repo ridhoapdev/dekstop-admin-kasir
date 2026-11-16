@@ -2,6 +2,7 @@
 tests/test_kartu_anggota.py — Unit test untuk Pencarian Global, Kartu Anggota, dan Filter Cepat (Modul 6).
 """
 import pytest
+from datetime import date
 from app.db.koneksi import buka_koneksi
 from app.db.skema import inisialisasi_skema
 from app.db.repo_anggota import tambah_anggota
@@ -83,8 +84,9 @@ def test_ambil_data_kartu_anggota_lengkap(db_conn):
 
 
 def test_filter_cepat_transaksi(db_conn):
+    tgl_ini = date.today().isoformat()
     id_a = tambah_anggota(db_conn, "A-0001", "Andi", None, None, None, None, "2026-11-01")
-    tambah_transaksi_simpanan(db_conn, id_a, "wajib", "setor", 50000, "2026-11-14")
+    tambah_transaksi_simpanan(db_conn, id_a, "wajib", "setor", 50000, tgl_ini)
 
     pinj_id = buat_pinjaman_baru(
         db_conn, "P-0001", id_a, 1, 1000000, 1, 1.0, 0, "2026-10-01"

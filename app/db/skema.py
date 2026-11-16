@@ -4,8 +4,11 @@ Sesuai DATABASE.md & RULES.md.
 """
 import sqlite3
 
-# Versi skema saat ini dinaikkan ke 3 untuk mendukung View Transaksi Efektif
-SKEMA_VERSI_TERKINI = 3
+from app.db.skema_toko import DDL_SKEMA_TOKO, DDL_MIGRASI_V5
+from app.db.skema_modul15 import DDL_MIGRASI_V6
+
+# Versi skema saat ini dinaikkan ke 6 untuk Modul 15: Kartu Barang, Retur, Stock Opname, Laporan Toko, Closing Toko
+SKEMA_VERSI_TERKINI = 6
 
 DDL_SKEMA_V1 = """
 -- 1. Pengaturan
@@ -206,7 +209,12 @@ DATA_AWAL_PENGATURAN = [
     ("pin_hash", ""),  # PIN closing default '1234' jika kosong
     ("hari_awal_minggu", "senin"),
     ("backup_folder_kedua", ""),
-    ("tampilkan_transaksi_dibatalkan", "0")
+    ("tampilkan_transaksi_dibatalkan", "0"),
+    ("izinkan_stok_minus", "0"),
+    ("jatuh_tempo_kredit_bulan", "1"),
+    ("format_no_nota", "NT-{YYYY}{MM}{DD}-{NO}"),
+    ("batas_piutang_peringatan", "0"),
+    ("peringatan_piutang_jatuh_tempo", "0")
 ]
 
 DATA_AWAL_PRODUK = [
@@ -226,6 +234,8 @@ def inisialisasi_skema(conn: sqlite3.Connection) -> None:
     if versi_sekarang == 0:
         with conn:
             conn.executescript(DDL_SKEMA_V1)
+            conn.executescript(DDL_SKEMA_TOKO)
+            conn.executescript(DDL_MIGRASI_V6)
             for kunci, nilai in DATA_AWAL_PENGATURAN:
                 conn.execute(
                     "INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES (?, ?);",
@@ -298,4 +308,43 @@ def inisialisasi_skema(conn: sqlite3.Connection) -> None:
                            END AS status_efektif
                     FROM pembayaran_angsuran pa;
                 """)
+                conn.execute(f"PRAGMA user_version = 3;")
+                versi_sekarang = 3
+
+        # Migrasi ke versi 4: Inisialisasi Modul 13 Fondasi Unit Toko
+        if versi_sekarang == 3:
+            with conn:
+                conn.executescript(DDL_SKEMA_TOKO)
+                conn.execute(
+                    "INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('izinkan_stok_minus', '0');"
+                )
+                conn.execute(f"PRAGMA user_version = 4;")
+                versi_sekarang = 4
+
+        # Migrasi ke versi 5: Inisialisasi Modul 14 Penjualan, Piutang, dan Titipan Harian
+        if versi_sekarang == 4:
+            with conn:
+                conn.executescript(DDL_MIGRASI_V5)
+                for k, v in [
+                    ("jatuh_tempo_kredit_bulan", "1"),
+                    ("format_no_nota", "NT-{YYYY}{MM}{DD}-{NO}"),
+                    ("batas_piutang_peringatan", "0"),
+                    ("peringatan_piutang_jatuh_tempo", "0")
+                ]:
+                    conn.execute("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES (?, ?);", (k, v))
+                conn.execute(f"PRAGMA user_version = 5;")
+                versi_sekarang = 5
+
+        # Migrasi ke versi 6: Inisialisasi Modul 15 (Retur, Opname, Closing Toko)
+        if versi_sekarang == 5:
+            with conn:
+                conn.executescript(DDL_MIGRASI_V6)
+                for k, v in [
+                    ("hari_barang_tidak_bergerak", "30"),
+                    ("format_no_retur_supplier", "RS-{YYYY}{MM}{DD}-{NO}"),
+                    ("format_no_retur_penjualan", "RJ-{YYYY}{MM}{DD}-{NO}"),
+                    ("format_kode_opname", "SO-{YYYY}{MM}{DD}-{NO}"),
+                ]:
+                    conn.execute("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES (?, ?);", (k, v))
                 conn.execute(f"PRAGMA user_version = {SKEMA_VERSI_TERKINI};")
+                versi_sekarang = 6
