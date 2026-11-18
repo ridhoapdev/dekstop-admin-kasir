@@ -15,6 +15,7 @@ from typing import Optional, Dict
 from app.config import NAMA_APLIKASI, VERSI_APLIKASI
 from app.layanan.backup import buat_backup, ambil_info_backup_terakhir
 from app.db.repo_kartu_anggota import cari_global
+from app.ui.komponen.sidebar import KomponenSidebar
 from app.ui.layar_ringkasan import LayarRingkasan
 from app.ui.layar_anggota import LayarAnggota
 from app.ui.layar_simpanan import LayarSimpanan, DialogInputSimpanan
@@ -71,15 +72,11 @@ class JendelaUtama(QMainWindow):
         layout_induk.setContentsMargins(0, 0, 0, 0)
         layout_induk.setSpacing(0)
 
-        # 1. Sidebar Navigasi Kiri
-        self.tombol_nav: Dict[str, QPushButton] = {}
-        self.sections: Dict[str, dict] = {}
-        self.pemetaan_tombol_section: Dict[str, str] = {}
-        self.grup_nav = QButtonGroup(self)
-        self.grup_nav.setExclusive(True)
-
-        self.sidebar_frame = self._buat_sidebar()
-        layout_induk.addWidget(self.sidebar_frame)
+        # 1. Sidebar Navigasi Kiri (Modern 3 Level)
+        self.sidebar = KomponenSidebar(self.conn, self)
+        self.sidebar.navigasi_diminta.connect(self._navigasi_dari_sidebar)
+        self.sidebar_frame = self.sidebar
+        layout_induk.addWidget(self.sidebar)
 
         # 2. Area Konten Kanan
         wadah_konten = QWidget(self)
@@ -251,319 +248,50 @@ class JendelaUtama(QMainWindow):
         # Default sorot tombol ringkasan
         self._sorot_tombol_nav("ringkasan")
 
-    def _buat_sidebar(self) -> QWidget:
-        """Membangun bilah samping (sidebar) navigasi modern, collapsible, dan dengan dropdown accordion."""
-        sidebar_frame = QFrame(self)
-        sidebar_frame.setFixedWidth(245)
-        sidebar_frame.setStyleSheet("background-color: #0F172A; border-right: 1px solid #1E293B;")
-
-        sidebar_layout = QVBoxLayout(sidebar_frame)
-        sidebar_layout.setContentsMargins(0, 0, 0, 0)
-        sidebar_layout.setSpacing(0)
-
-        # 1. Header Logo & Info Koperasi + Tombol Ciutkan Cepat
-        header_widget = QWidget(sidebar_frame)
-        header_widget.setStyleSheet("background-color: #0B1120; border-bottom: 1px solid #1E293B;")
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(16, 14, 12, 14)
-        header_layout.setSpacing(6)
-
-        header_teks_lay = QVBoxLayout()
-        header_teks_lay.setContentsMargins(0, 0, 0, 0)
-        header_teks_lay.setSpacing(2)
-
-        lbl_judul = QLabel("Koperasi dan Toko", header_widget)
-        lbl_judul.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        lbl_judul.setStyleSheet("color: #F8FAFC; border: none; background: transparent;")
-        header_teks_lay.addWidget(lbl_judul)
-
-        lbl_sub = QLabel("Sistem Administrasi Terpadu", header_widget)
-        lbl_sub.setFont(QFont("Segoe UI", 8.5))
-        lbl_sub.setStyleSheet("color: #94A3B8; border: none; background: transparent;")
-        header_teks_lay.addWidget(lbl_sub)
-
-        header_layout.addLayout(header_teks_lay, 1)
-
-        btn_tutup_sidebar = QPushButton("◀", header_widget)
-        btn_tutup_sidebar.setToolTip("Ciutkan / Sembunyikan Bilah Samping")
-        btn_tutup_sidebar.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_tutup_sidebar.setStyleSheet("""
-            QPushButton {
-                background-color: #1E293B;
-                color: #94A3B8;
-                border: 1px solid #334155;
-                border-radius: 4px;
-                padding: 4px 8px;
-                font-size: 9pt;
-                outline: none;
-                min-height: 26px;
-            }
-            QPushButton:hover {
-                background-color: #334155;
-                color: #F8FAFC;
-            }
-        """)
-        btn_tutup_sidebar.clicked.connect(self._toggle_sidebar)
-        header_layout.addWidget(btn_tutup_sidebar)
-
-        sidebar_layout.addWidget(header_widget)
-
-        # 2. Area Scroll Navigasi
-        scroll_area = QScrollArea(sidebar_frame)
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet("""
-            QScrollArea { background-color: #0F172A; border: none; }
-            QScrollBar:vertical {
-                border: none;
-                background: #0F172A;
-                width: 6px;
-                margin: 0;
-            }
-            QScrollBar::handle:vertical {
-                background: #334155;
-                min-height: 20px;
-                border-radius: 3px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-        """)
-
-        nav_konten = QWidget()
-        nav_konten.setStyleSheet("background-color: #0F172A;")
-        nav_layout = QVBoxLayout(nav_konten)
-        nav_layout.setContentsMargins(10, 10, 10, 16)
-        nav_layout.setSpacing(4)
-
-        style_btn = """
-            QPushButton {
-                text-align: left;
-                padding: 7px 12px;
-                border-radius: 5px;
-                font-family: 'Segoe UI';
-                font-size: 10pt;
-                color: #CBD5E1;
-                background-color: transparent;
-                border: none;
-                outline: none;
-            }
-            QPushButton:hover {
-                background-color: #1E293B;
-                color: #F8FAFC;
-            }
-            QPushButton:checked {
-                background-color: #1E3A8A;
-                color: #FFFFFF;
-                font-weight: bold;
-                border-left: 4px solid #60A5FA;
-                border-top-left-radius: 2px;
-                border-bottom-left-radius: 2px;
-            }
-        """
-
-        def buat_section(kunci_sec: str, judul: str, terbuka_awal: bool = True):
-            header_btn = QPushButton(f"▼  {judul}")
-            header_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            header_btn.setToolTip("Klik untuk membuka atau menutup kelompok menu")
-            header_btn.setStyleSheet("""
-                QPushButton {
-                    text-align: left;
-                    padding: 8px 8px 6px 8px;
-                    border-radius: 5px;
-                    font-family: 'Segoe UI';
-                    font-size: 8.5pt;
-                    font-weight: bold;
-                    color: #94A3B8;
-                    background-color: transparent;
-                    border: none;
-                    outline: none;
-                    text-transform: uppercase;
-                }
-                QPushButton:hover {
-                    background-color: #1E293B;
-                    color: #F8FAFC;
-                }
-            """)
-
-            wadah_sec = QWidget()
-            wadah_sec.setStyleSheet("background-color: transparent;")
-            layout_sec = QVBoxLayout(wadah_sec)
-            layout_sec.setContentsMargins(4, 1, 0, 4)
-            layout_sec.setSpacing(2)
-
-            def aksi_toggle():
-                terbuka = not wadah_sec.isVisible()
-                wadah_sec.setVisible(terbuka)
-                tanda = "▼" if terbuka else "▶"
-                header_btn.setText(f"{tanda}  {judul}")
-
-            header_btn.clicked.connect(aksi_toggle)
-
-            if not terbuka_awal:
-                wadah_sec.hide()
-                header_btn.setText(f"▶  {judul}")
-
-            nav_layout.addWidget(header_btn)
-            nav_layout.addWidget(wadah_sec)
-
-            self.sections[kunci_sec] = {
-                "header": header_btn,
-                "wadah": wadah_sec,
-                "judul": judul,
-            }
-            return layout_sec
-
-        def tambah_tombol(lay_grup, kunci_sec: str, kunci_btn: str, label: str, aksi):
-            btn = QPushButton(label)
-            btn.setCheckable(True)
-            btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            btn.setStyleSheet(style_btn)
-            btn.clicked.connect(aksi)
-            self.grup_nav.addButton(btn)
-            self.tombol_nav[kunci_btn] = btn
-            self.pemetaan_tombol_section[kunci_btn] = kunci_sec
-            lay_grup.addWidget(btn)
-            return btn
-
-        # --- GRUP 1: DASBOR ---
-        lay_dasbor = buat_section("dasbor", "DASBOR UTAMA", terbuka_awal=True)
-        tambah_tombol(lay_dasbor, "dasbor", "ringkasan", "Ringkasan Koperasi", self._buka_layar_ringkasan)
-        tambah_tombol(lay_dasbor, "dasbor", "ringkasan_toko", "Dasbor Unit Toko", self._buka_layar_ringkasan_toko)
-
-        # --- GRUP 2: SIMPAN PINJAM ---
-        lay_sp = buat_section("simpan_pinjam", "SIMPAN PINJAM", terbuka_awal=True)
-        tambah_tombol(lay_sp, "simpan_pinjam", "anggota", "Data Anggota", self._buka_layar_anggota)
-        tambah_tombol(lay_sp, "simpan_pinjam", "simpanan", "Transaksi Simpanan", self._buka_layar_simpanan)
-        tambah_tombol(lay_sp, "simpan_pinjam", "pinjaman", "Data Pinjaman", self._buka_layar_pinjaman)
-        tambah_tombol(lay_sp, "simpan_pinjam", "angsuran", "Pembayaran Angsuran", self._buka_layar_angsuran)
-        tambah_tombol(lay_sp, "simpan_pinjam", "kartu_anggota", "Kartu Anggota", self._buka_layar_kartu_anggota)
-        tambah_tombol(lay_sp, "simpan_pinjam", "kas", "Buku Kas Operasional", self._buka_layar_kas)
-        tambah_tombol(lay_sp, "simpan_pinjam", "filter_cepat", "Filter Cepat Transaksi", self._buka_layar_filter_cepat)
-
-        # --- GRUP 3: TRANSAKSI TOKO ---
-        lay_toko = buat_section("toko", "OPERASIONAL TOKO", terbuka_awal=True)
-        tambah_tombol(lay_toko, "toko", "penjualan", "Kasir Penjualan", self._buka_layar_penjualan)
-        tambah_tombol(lay_toko, "toko", "piutang", "Piutang Pembeli", self._buka_layar_piutang)
-        tambah_tombol(lay_toko, "toko", "penitipan", "Penitipan Harian", self._buka_layar_penitipan)
-        tambah_tombol(lay_toko, "toko", "pembelian", "Pembelian (Barang Masuk)", self._buka_layar_pembelian)
-
-        # --- GRUP 4: STOK & MASTER ---
-        lay_stok = buat_section("stok_master", "STOK DAN MASTER BARANG", terbuka_awal=True)
-        tambah_tombol(lay_stok, "stok_master", "barang", "Master Barang dan Satuan", self._buka_layar_barang)
-        tambah_tombol(lay_stok, "stok_master", "pihak", "Pihak Terkait (Supplier/dll)", self._buka_layar_pihak)
-        tambah_tombol(lay_stok, "stok_master", "stok", "Daftar Stok FIFO", self._buka_layar_daftar_stok)
-        tambah_tombol(lay_stok, "stok_master", "kartu_barang", "Kartu Barang", self._buka_layar_kartu_barang)
-        tambah_tombol(lay_stok, "stok_master", "retur", "Retur Barang Toko", self._buka_layar_retur_toko)
-        tambah_tombol(lay_stok, "stok_master", "opname", "Stock Opname Toko", self._buka_layar_opname_toko)
-
-        # --- GRUP 5: LAPORAN & CLOSING SP ---
-        lay_lap_sp = buat_section("laporan_sp", "LAPORAN DAN CLOSING SP", terbuka_awal=True)
-        tambah_tombol(lay_lap_sp, "laporan_sp", "laporan_mingguan", "Laporan Mingguan SP", self._buka_layar_laporan)
-        tambah_tombol(lay_lap_sp, "laporan_sp", "laporan_bulanan", "Laporan Bulanan SP", self._buka_layar_laporan_bulanan)
-        tambah_tombol(lay_lap_sp, "laporan_sp", "laporan_tahunan", "Laporan Tahunan SP", self._buka_layar_laporan_tahunan)
-        tambah_tombol(lay_lap_sp, "laporan_sp", "closing_sp", "Closing Bulanan SP", self._buka_layar_closing)
-
-        # --- GRUP 6: LAPORAN & CLOSING TOKO ---
-        lay_lap_toko = buat_section("laporan_toko", "LAPORAN DAN CLOSING TOKO", terbuka_awal=True)
-        tambah_tombol(lay_lap_toko, "laporan_toko", "laporan_toko", "Laporan Toko Retail", self._buka_layar_laporan_toko)
-        tambah_tombol(lay_lap_toko, "laporan_toko", "closing_toko", "Closing Unit Toko", self._buka_layar_closing_toko)
-
-        # --- GRUP 7: SISTEM ---
-        lay_sistem = buat_section("sistem", "SISTEM DAN DATA", terbuka_awal=True)
-        tambah_tombol(lay_sistem, "sistem", "impor", "Impor Data Excel", self._buka_layar_impor)
-
-        nav_layout.addStretch()
-        scroll_area.setWidget(nav_konten)
-        self.sidebar_scroll_area = scroll_area
-        sidebar_layout.addWidget(scroll_area, 1)
-
-        # 3. Footer Sidebar (Aksi Backup & Keluar)
-        footer_widget = QWidget(sidebar_frame)
-        footer_widget.setStyleSheet("background-color: #0B1120; border-top: 1px solid #1E293B;")
-        footer_layout = QVBoxLayout(footer_widget)
-        footer_layout.setContentsMargins(12, 10, 12, 12)
-        footer_layout.setSpacing(6)
-
-        btn_backup = QPushButton("Backup Database", footer_widget)
-        btn_backup.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_backup.setStyleSheet("""
-            QPushButton {
-                background-color: #1E293B;
-                color: #CBD5E1;
-                border: 1px solid #334155;
-                border-radius: 5px;
-                padding: 6px 10px;
-                font-size: 9.5pt;
-                text-align: center;
-                outline: none;
-            }
-            QPushButton:hover {
-                background-color: #334155;
-                color: #FFFFFF;
-            }
-        """)
-        btn_backup.clicked.connect(self._jalankan_backup_manual)
-        footer_layout.addWidget(btn_backup)
-
-        btn_keluar = QPushButton("Keluar Aplikasi", footer_widget)
-        btn_keluar.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        btn_keluar.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                color: #94A3B8;
-                border: none;
-                padding: 4px;
-                font-size: 9.5pt;
-                text-align: center;
-                outline: none;
-            }
-            QPushButton:hover {
-                color: #EF4444;
-            }
-        """)
-        btn_keluar.clicked.connect(self.close)
-        footer_layout.addWidget(btn_keluar)
-
-        sidebar_layout.addWidget(footer_widget)
-
-        return sidebar_frame
+    def _navigasi_dari_sidebar(self, kunci: str) -> None:
+        """Handler pemetaan dari klik sidebar ke halaman layar target."""
+        pemetaan_aksi = {
+            "ringkasan": self._buka_layar_ringkasan,
+            "anggota": self._buka_layar_anggota,
+            "simpanan": self._buka_layar_simpanan,
+            "pinjaman": self._buka_layar_pinjaman,
+            "angsuran": self._buka_layar_angsuran,
+            "kartu_anggota": self._buka_layar_kartu_anggota,
+            "kas": self._buka_layar_kas,
+            "filter_cepat": self._buka_layar_filter_cepat,
+            "penjualan": self._buka_layar_penjualan,
+            "piutang": self._buka_layar_piutang,
+            "penitipan": self._buka_layar_penitipan,
+            "pembelian": self._buka_layar_pembelian,
+            "barang": self._buka_layar_barang,
+            "pihak": self._buka_layar_pihak,
+            "stok": self._buka_layar_daftar_stok,
+            "kartu_barang": self._buka_layar_kartu_barang,
+            "retur": self._buka_layar_retur_toko,
+            "opname": self._buka_layar_opname_toko,
+            "laporan_mingguan": self._buka_layar_laporan,
+            "laporan_bulanan": self._buka_layar_laporan_bulanan,
+            "laporan_tahunan": self._buka_layar_laporan_tahunan,
+            "closing_sp": self._buka_layar_closing,
+            "laporan_toko": self._buka_layar_laporan_toko,
+            "closing_toko": self._buka_layar_closing_toko,
+            "impor": self._buka_layar_impor,
+        }
+        aksi = pemetaan_aksi.get(kunci)
+        if aksi:
+            aksi()
 
     def _toggle_sidebar(self) -> None:
-        """Membuka atau menutup bilah samping (sidebar) navigasi secara mulus."""
-        if hasattr(self, "sidebar_frame") and self.sidebar_frame:
-            terbuka = not self.sidebar_frame.isVisible()
-            self.sidebar_frame.setVisible(terbuka)
+        """Mendelegasikan buka/tutup ke komponen sidebar."""
+        if hasattr(self, "sidebar") and self.sidebar:
+            self.sidebar.toggle_mode_lipat()
             if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar:
-                self.btn_toggle_sidebar.setText("☰ Menu" if terbuka else "☰ Buka Menu")
-                if terbuka:
-                    self.btn_toggle_sidebar.setStyleSheet(
-                        "background-color: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 6px; "
-                        "padding: 0 14px; min-height: 38px; font-weight: bold; color: #1E293B; outline: none;"
-                    )
-                else:
-                    self.btn_toggle_sidebar.setStyleSheet(
-                        "background-color: #2563EB; border: 1.5px solid #1D4ED8; border-radius: 6px; "
-                        "padding: 0 14px; min-height: 38px; font-weight: bold; color: #FFFFFF; outline: none;"
-                    )
+                self.btn_toggle_sidebar.setText("☰ Buka Menu" if self.sidebar.terlipat else "☰ Menu")
 
     def _sorot_tombol_nav(self, kunci: str) -> None:
-        """Memastikan tombol navigasi yang sesuai dengan layar aktif ditandai aktif, section dibuka, dan terlihat."""
-        btn = self.tombol_nav.get(kunci)
-        if btn:
-            if not btn.isChecked():
-                btn.setChecked(True)
-            # Buka otomatis section bila sedang tertutup (collapse)
-            kunci_sec = self.pemetaan_tombol_section.get(kunci)
-            if kunci_sec and kunci_sec in self.sections:
-                sec_data = self.sections[kunci_sec]
-                wadah = sec_data["wadah"]
-                if not wadah.isVisible():
-                    wadah.show()
-                    sec_data["header"].setText(f"▼  {sec_data['judul']}")
-            if hasattr(self, "sidebar_scroll_area") and self.sidebar_scroll_area:
-                self.sidebar_scroll_area.ensureWidgetVisible(btn)
+        """Memastikan tombol navigasi yang sesuai dengan layar aktif ditandai aktif di sidebar."""
+        if hasattr(self, "sidebar") and self.sidebar:
+            self.sidebar.set_aktif(kunci)
 
     def _buat_menu(self) -> None:
         menu_bar = self.menuBar()
