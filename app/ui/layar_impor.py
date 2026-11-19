@@ -19,6 +19,7 @@ from app.layanan.impor_excel import (
     buat_template_impor_excel, validasi_file_impor, eksekusi_impor_data
 )
 from app.util.format import format_rupiah, format_tanggal_indo
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class LayarImpor(QWidget):
@@ -75,6 +76,7 @@ class LayarImpor(QWidget):
         self.tabel_anggota.setColumnCount(5)
         self.tabel_anggota.setHorizontalHeaderLabels(["No Anggota", "Nama Lengkap", "NIK", "Unit", "Tgl Masuk"])
         self.tabel_anggota.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        terapkan_style_tabel_global(self.tabel_anggota)
         self.tabs.addTab(self.tabel_anggota, "Pratinjau Anggota (0)")
 
         # Tab 2: Simpanan
@@ -82,6 +84,7 @@ class LayarImpor(QWidget):
         self.tabel_simpanan.setColumnCount(5)
         self.tabel_simpanan.setHorizontalHeaderLabels(["No Anggota", "Saldo Pokok", "Saldo Wajib", "Saldo Sukarela", "Tgl Saldo"])
         self.tabel_simpanan.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        terapkan_style_tabel_global(self.tabel_simpanan, rata_kanan_kolom=[1, 2, 3])
         self.tabs.addTab(self.tabel_simpanan, "Pratinjau Simpanan (0)")
 
         # Tab 3: Pinjaman
@@ -89,6 +92,7 @@ class LayarImpor(QWidget):
         self.tabel_pinjaman.setColumnCount(6)
         self.tabel_pinjaman.setHorizontalHeaderLabels(["No Pinjaman", "No Anggota", "Plafon", "Tenor", "Jasa/Bln", "Sisa Pokok"])
         self.tabel_pinjaman.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        terapkan_style_tabel_global(self.tabel_pinjaman, rata_kanan_kolom=[2, 4, 5])
         self.tabs.addTab(self.tabel_pinjaman, "Pratinjau Pinjaman (0)")
 
         # Tab 4: Laporan Error / Validasi

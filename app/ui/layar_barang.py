@@ -22,6 +22,7 @@ from app.db.repo_barang import (
 from app.db.repo_pihak import ambil_daftar_pihak
 from app.util.format import format_rupiah
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.layanan.bus_sinyal import langganan, lepas_langganan
 
 
@@ -61,9 +62,11 @@ class DialogSatuanBarang(QDialog):
         self.tabel.setColumnWidth(0, 50)
         self.tabel.setColumnWidth(2, 160)
         self.tabel.setColumnWidth(3, 220)
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(38)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[2],
+            kolom_sembunyi=[0]
+        )
         layout.addWidget(self.tabel)
 
         # Form tambah satuan baru
@@ -367,10 +370,12 @@ class LayarBarang(QWidget):
         self.tabel.setColumnWidth(5, 140)  # Harga Jual
         self.tabel.setColumnWidth(6, 130)  # Kepemilikan
         self.tabel.setColumnWidth(7, 90)   # Status
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[5],
+            kolom_status=7,
+            kolom_sembunyi=[0]
+        )
         layout.addWidget(self.tabel)
 
         # Bar Tombol Bawah

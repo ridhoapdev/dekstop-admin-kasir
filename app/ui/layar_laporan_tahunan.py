@@ -21,6 +21,7 @@ from app.util.format import format_rupiah
 from app.layanan.ekspor_laporan_periode import (
     ekspor_laporan_tahunan_excel, ekspor_laporan_tahunan_pdf
 )
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.ui.komponen.grafik_batang_qt import WidgetGrafikBatangTahunan
 
 
@@ -146,8 +147,11 @@ class LayarLaporanTahunan(QWidget):
         self.tabel_12.setColumnWidth(6, 130)
         self.tabel_12.setColumnWidth(7, 125)
         self.tabel_12.setColumnWidth(8, 135)
-        self.tabel_12.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_12.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(
+            self.tabel_12,
+            rata_kanan_kolom=[2, 3, 4, 5, 6, 7, 8],
+            kolom_status=1
+        )
         self.tabel_12.setFixedHeight(380)
         v_12.addWidget(self.tabel_12)
         konten_layout.addWidget(box_12)

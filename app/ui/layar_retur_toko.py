@@ -21,6 +21,7 @@ from app.db.repo_retur_toko import (
 )
 from app.db.repo_pihak import ambil_daftar_pihak
 from app.util.format import format_rupiah, format_tanggal_indo
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class LayarReturToko(QWidget):
@@ -77,6 +78,10 @@ class LayarReturToko(QWidget):
         self.tbl_rs.setColumnWidth(3, 130)  # No Faktur
         self.tbl_rs.setColumnWidth(4, 130)  # Total Nilai
         self.tbl_rs.setColumnWidth(5, 120)  # Kompensasi
+        terapkan_style_tabel_global(
+            self.tbl_rs,
+            rata_kanan_kolom=[4]
+        )
         lay_rs.addWidget(self.tbl_rs)
         self.tabs.addTab(tab_rs, "Riwayat Retur ke Supplier")
 
@@ -96,6 +101,10 @@ class LayarReturToko(QWidget):
         self.tbl_rj.setColumnWidth(3, 130)  # No Nota
         self.tbl_rj.setColumnWidth(4, 130)  # Total Nilai
         self.tbl_rj.setColumnWidth(5, 120)  # Kompensasi
+        terapkan_style_tabel_global(
+            self.tbl_rj,
+            rata_kanan_kolom=[4]
+        )
         lay_rj.addWidget(self.tbl_rj)
         self.tabs.addTab(tab_rj, "Riwayat Retur dari Konsumen")
 

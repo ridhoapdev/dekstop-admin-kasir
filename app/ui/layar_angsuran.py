@@ -26,6 +26,9 @@ from app.db.repo_angsuran import (
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.cetak_kuitansi import buat_kuitansi_angsuran_pdf
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import (
+    terapkan_style_tabel_global, NumericTableWidgetItem
+)
 
 
 class DialogInputAngsuran(QDialog):
@@ -290,18 +293,30 @@ class LayarAngsuran(QWidget):
         self.tabel.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.tabel.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.tabel.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-        self.tabel.setColumnWidth(0, 50)   # ID
-        self.tabel.setColumnWidth(1, 115)  # Tanggal
-        self.tabel.setColumnWidth(2, 115)  # No. Pinjaman
-        self.tabel.setColumnWidth(4, 90)   # Angsuran
-        self.tabel.setColumnWidth(5, 135)  # Bayar Pokok
-        self.tabel.setColumnWidth(6, 125)  # Bayar Jasa
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.setAlternatingRowColors(True)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+        self.tabel.setColumnWidth(0, 50)   # ID (sembunyi)
+        self.tabel.setColumnWidth(1, 120)  # Tanggal
+        self.tabel.setColumnWidth(2, 120)  # No. Pinjaman
+        self.tabel.setColumnWidth(4, 95)   # Angsuran
+        self.tabel.setColumnWidth(5, 140)  # Bayar Pokok (rata kanan)
+        self.tabel.setColumnWidth(6, 130)  # Bayar Jasa (rata kanan)
+
+        self.empty_state = terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[5, 6],
+            kolom_sembunyi=[0]
+        )
+        self.tabel.itemSelectionChanged.connect(self._perbarui_status_tombol)
 
         layout.addWidget(self.tabel)
+
+        # Baris Info Jumlah Data
+        lbl_info_row = QHBoxLayout()
+        self.lbl_jumlah_data = QLabel("Menampilkan 0 pembayaran", self)
+        self.lbl_jumlah_data.setFont(QFont("Segoe UI", 9.5))
+        self.lbl_jumlah_data.setStyleSheet("color: #64748B; font-weight: 500;")
+        lbl_info_row.addWidget(self.lbl_jumlah_data)
+        lbl_info_row.addStretch()
+        layout.addLayout(lbl_info_row)
 
         # Tombol Aksi Bawah
         aksi_layout = QHBoxLayout()
@@ -320,14 +335,18 @@ class LayarAngsuran(QWidget):
 
         self.daftar_bayar = []
         self.muat_data()
+        self._perbarui_status_tombol()
 
     def muat_data(self) -> None:
         k = self.input_cari.text().strip()
         self.daftar_bayar = ambil_riwayat_pembayaran_angsuran(self.conn, kata_kunci=k, limit=200)
+        self.tabel.setSortingEnabled(False)
         self.tabel.setRowCount(len(self.daftar_bayar))
 
         for baris, r in enumerate(self.daftar_bayar):
-            self.tabel.setItem(baris, 0, QTableWidgetItem(str(r["id"])))
+            id_item = QTableWidgetItem(str(r["id"]))
+            id_item.setData(Qt.ItemDataRole.UserRole, r["id"])
+            self.tabel.setItem(baris, 0, id_item)
             self.tabel.setItem(baris, 1, QTableWidgetItem(format_tanggal_indo(r["tanggal"])))
             self.tabel.setItem(baris, 2, QTableWidgetItem(r["no_pinjaman"]))
             self.tabel.setItem(baris, 3, QTableWidgetItem(f"{r['nama_anggota']} ({r['no_anggota']})"))
@@ -335,18 +354,40 @@ class LayarAngsuran(QWidget):
             angs_teks = f"Ke-{r['angsuran_ke']}" if r["angsuran_ke"] else "Pelunasan Dipercepat"
             self.tabel.setItem(baris, 4, QTableWidgetItem(angs_teks))
 
-            p_item = QTableWidgetItem(format_rupiah(r["bayar_pokok"]))
-            p_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            p_item = NumericTableWidgetItem(format_rupiah(r["bayar_pokok"]), r["bayar_pokok"])
             self.tabel.setItem(baris, 5, p_item)
 
-            j_item = QTableWidgetItem(format_rupiah(r["bayar_jasa"]))
-            j_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            j_item = NumericTableWidgetItem(format_rupiah(r["bayar_jasa"]), r["bayar_jasa"])
             self.tabel.setItem(baris, 6, j_item)
 
             ket = r["keterangan"] or "-"
             if r["membalik_id"]:
                 ket = f"[PEMBALIK #{r['membalik_id']}] {ket}"
             self.tabel.setItem(baris, 7, QTableWidgetItem(ket))
+
+        self.tabel.setSortingEnabled(True)
+
+        jml = len(self.daftar_bayar)
+        self.lbl_jumlah_data.setText(f"Menampilkan {jml} pembayaran angsuran")
+        if jml == 0:
+            if k:
+                self.empty_state.tampilkan(
+                    f"Tidak ada pembayaran yang cocok dengan '{k}'",
+                    label_tombol="Hapus pencarian",
+                    callback_aksi=self.input_cari.clear
+                )
+            else:
+                self.empty_state.tampilkan("Belum ada riwayat pembayaran angsuran.")
+        else:
+            self.empty_state.hide()
+
+        self._perbarui_status_tombol()
+
+    def _perbarui_status_tombol(self) -> None:
+        baris = self.tabel.currentRow()
+        terpilih = (baris >= 0 and baris < len(self.daftar_bayar))
+        self.btn_cetak.setEnabled(terpilih)
+        self.btn_balik.setEnabled(terpilih)
 
     def _cetak_kuitansi(self) -> None:
         baris = self.tabel.currentRow()

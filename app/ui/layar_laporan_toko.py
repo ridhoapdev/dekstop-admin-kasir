@@ -28,6 +28,7 @@ from app.db.repo_laporan_toko import (
 )
 from app.layanan.ekspor_laporan_toko import ekspor_rekap_barang_excel, ekspor_rekap_barang_pdf
 from app.util.format import format_rupiah, format_tanggal_indo
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class LayarLaporanToko(QWidget):
@@ -150,6 +151,10 @@ class LayarLaporanToko(QWidget):
         self.tbl_rekap.setColumnWidth(8, 130)  # Total Penjualan
         self.tbl_rekap.setColumnWidth(9, 130)  # Total HPP
         self.tbl_rekap.setColumnWidth(10, 130) # Laba Kotor
+        terapkan_style_tabel_global(
+            self.tbl_rekap,
+            rata_kanan_kolom=[3, 4, 5, 6, 7, 8, 9, 10]
+        )
         lay_rk.addWidget(self.tbl_rekap)
         self.tabs.addTab(tab_rekap, "Rekapitulasi per Barang")
 
@@ -173,6 +178,10 @@ class LayarLaporanToko(QWidget):
         self.tbl_rincian.setColumnWidth(7, 130)  # Subtotal
         self.tbl_rincian.setColumnWidth(8, 120)  # Laba
         self.tbl_rincian.setColumnWidth(9, 90)   # Metode
+        terapkan_style_tabel_global(
+            self.tbl_rincian,
+            rata_kanan_kolom=[4, 5, 6, 7, 8]
+        )
         lay_rc.addWidget(self.tbl_rincian)
         self.tabs.addTab(tab_rincian, "Rincian Transaksi")
 
@@ -193,6 +202,10 @@ class LayarLaporanToko(QWidget):
         self.tbl_tahunan.setColumnWidth(5, 130)  # Rugi Persediaan
         self.tbl_tahunan.setColumnWidth(6, 130)  # Kas Akhir
         self.tbl_tahunan.setColumnWidth(7, 130)  # Persediaan Akhir
+        terapkan_style_tabel_global(
+            self.tbl_tahunan,
+            rata_kanan_kolom=[2, 3, 4, 5, 6, 7]
+        )
         lay_th.addWidget(self.tbl_tahunan)
         self.tabs.addTab(tab_tahunan, "Laporan Tahunan 12 Bulan")
 
@@ -209,6 +222,10 @@ class LayarLaporanToko(QWidget):
         self.tbl_macet.setColumnWidth(2, 90)   # Satuan
         self.tbl_macet.setColumnWidth(3, 130)  # Stok Mengendap
         self.tbl_macet.setColumnWidth(4, 140)  # Penjualan Terakhir
+        terapkan_style_tabel_global(
+            self.tbl_macet,
+            rata_kanan_kolom=[3]
+        )
         lay_an.addWidget(self.tbl_macet)
         self.tabs.addTab(tab_analisis, "Barang Tidak Bergerak")
 

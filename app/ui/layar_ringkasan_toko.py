@@ -98,6 +98,106 @@ class LayarRingkasanToko(QWidget):
         header_lay.addWidget(lbl_judul)
 
         header_lay.addStretch()
+"""
+app/ui/layar_ringkasan_toko.py — Layar Dasbor Utama Unit Toko (Ringkasan Toko).
+Menampilkan 6 kartu metrik bersih:
+- Penjualan Hari Ini
+- Laba Kotor Hari Ini
+- Posisi Kas Toko Saat Ini
+- Total Piutang Pembeli
+- Hutang ke Penitip Hari Ini
+- Nota Lewat Jatuh Tempo & Stok di Bawah Minimum
+Aksi Cepat: Buka Kasir Penjualan, Penerimaan Piutang, Setoran Penitip Sore, Pembelian.
+Realtime update via bus_sinyal.
+"""
+import sqlite3
+from typing import Optional, Callable
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QFrame, QGridLayout, QMessageBox
+)
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtCore import Qt
+
+from app.db.repo_ringkasan_toko import ambil_ringkasan_dasbor_toko
+from app.util.format import format_rupiah, format_tanggal_indo
+from app.layanan.bus_sinyal import langganan, lepas_langganan
+
+
+class KartuMetrikToko(QFrame):
+    """Komponen kartu metrik toko dengan font besar dan kontras jelas."""
+
+    def __init__(self, judul: str, nilai_awal: str, warna_aksen: str = "#2563EB", parent=None):
+        super().__init__(parent)
+        self.setObjectName("KartuMetrikToko")
+        self.setStyleSheet(
+            f"QFrame#KartuMetrikToko {{ "
+            f"    background-color: #FFFFFF; "
+            f"    border: none; "
+            f"    border-left: 6px solid {warna_aksen}; "
+            f"    border-radius: 8px; "
+            f"}} "
+            f"QLabel {{ "
+            f"    border: none; "
+            f"    background: transparent; "
+            f"}}"
+        )
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(18, 14, 18, 14)
+        lay.setSpacing(6)
+
+        self.lbl_judul = QLabel(judul, self)
+        self.lbl_judul.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.lbl_judul.setStyleSheet("color: #6B7280; font-size: 11pt; font-weight: bold;")
+        lay.addWidget(self.lbl_judul)
+
+        self.lbl_nilai = QLabel(nilai_awal, self)
+        self.lbl_nilai.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.lbl_nilai.setStyleSheet(f"color: {warna_aksen}; font-size: 18pt; font-weight: bold;")
+        lay.addWidget(self.lbl_nilai)
+
+    def set_nilai(self, nilai: str) -> None:
+        self.lbl_nilai.setText(nilai)
+
+
+class LayarRingkasanToko(QWidget):
+    """Layar Ringkasan Toko (Dasbor Halaman Awal Toko)."""
+
+    def __init__(self, conn: sqlite3.Connection, navigasi_callback: Optional[Callable[[str], None]] = None, parent=None):
+        super().__init__(parent)
+        self.conn = conn
+        self.navigasi_cb = navigasi_callback
+        self._inisialisasi_ui()
+
+        # Langganan event bus real-time
+        langganan("penjualan_berubah", self.muat_data)
+        langganan("piutang_berubah", self.muat_data)
+        langganan("penitipan_berubah", self.muat_data)
+        langganan("stok_berubah", self.muat_data)
+        langganan("kas_toko_berubah", self.muat_data)
+
+    def closeEvent(self, event):
+        lepas_langganan("penjualan_berubah", self.muat_data)
+        lepas_langganan("piutang_berubah", self.muat_data)
+        lepas_langganan("penitipan_berubah", self.muat_data)
+        lepas_langganan("stok_berubah", self.muat_data)
+        lepas_langganan("kas_toko_berubah", self.muat_data)
+        super().closeEvent(event)
+
+    def _inisialisasi_ui(self) -> None:
+        self.setFont(QFont("Segoe UI", 12))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 12, 15, 15)
+        layout.setSpacing(14)
+
+        # Header Selamat Datang Toko
+        header_lay = QHBoxLayout()
+        lbl_judul = QLabel("Dasbor Utama Unit Toko Retail", self)
+        lbl_judul.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        lbl_judul.setStyleSheet("color: #1E3A8A;")
+        header_lay.addWidget(lbl_judul)
+
+        header_lay.addStretch()
 
         btn_refresh = QPushButton("Segarkan Data", self)
         btn_refresh.setMinimumHeight(38)

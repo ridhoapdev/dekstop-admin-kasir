@@ -26,6 +26,9 @@ from app.db.repo_pinjaman import (
 from app.logika.angsuran_flat import hitung_jadwal_angsuran_flat
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import (
+    terapkan_style_tabel_global, NumericTableWidgetItem
+)
 
 
 class DialogPinjamanBaru(QDialog):
@@ -134,8 +137,10 @@ class DialogPinjamanBaru(QDialog):
             "Angsuran Ke", "Jatuh Tempo", "Pokok (Rp)", "Jasa (Rp)", "Total Tagihan (Rp)"
         ])
         self.tabel_jadwal.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.tabel_jadwal.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_jadwal.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(
+            self.tabel_jadwal,
+            rata_kanan_kolom=[2, 3, 4]
+        )
         layout.addWidget(self.tabel_jadwal)
 
         # Ringkasan total
@@ -355,8 +360,7 @@ class DialogRincianPinjaman(QDialog):
             "Angsuran Ke", "Jatuh Tempo", "Tagihan Pokok", "Tagihan Jasa", "Total Angsuran"
         ])
         tabel.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        tabel.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(tabel, rata_kanan_kolom=[2, 3, 4])
 
         jadwal = ambil_jadwal_angsuran_pinjaman(self.conn, self.pinj["id"])
         tabel.setRowCount(len(jadwal))
@@ -448,20 +452,33 @@ class LayarPinjaman(QWidget):
         ])
         self.tabel.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.tabel.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.tabel.setColumnWidth(0, 50)   # ID
-        self.tabel.setColumnWidth(1, 115)  # No. Pinjaman
-        self.tabel.setColumnWidth(3, 135)  # Plafon
+        self.tabel.setColumnWidth(0, 50)   # ID (sembunyi)
+        self.tabel.setColumnWidth(1, 120)  # No. Pinjaman
+        self.tabel.setColumnWidth(3, 140)  # Plafon (rata kanan)
         self.tabel.setColumnWidth(4, 90)   # Tenor
-        self.tabel.setColumnWidth(5, 115)  # Jasa/Bln
-        self.tabel.setColumnWidth(6, 115)  # Tgl Cair
-        self.tabel.setColumnWidth(7, 100)  # Status
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.setAlternatingRowColors(True)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+        self.tabel.setColumnWidth(5, 110)  # Jasa/Bln
+        self.tabel.setColumnWidth(6, 120)  # Tgl Cair
+        self.tabel.setColumnWidth(7, 110)  # Status Badge
+
+        self.empty_state = terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[3],
+            kolom_status=7,
+            kolom_sembunyi=[0]
+        )
+        self.tabel.itemSelectionChanged.connect(self._perbarui_status_tombol)
         self.tabel.doubleClicked.connect(self._lihat_rincian)
 
         layout.addWidget(self.tabel)
+
+        # Baris Info Jumlah Data
+        lbl_info_row = QHBoxLayout()
+        self.lbl_jumlah_data = QLabel("Menampilkan 0 pinjaman", self)
+        self.lbl_jumlah_data.setFont(QFont("Segoe UI", 9.5))
+        self.lbl_jumlah_data.setStyleSheet("color: #64748B; font-weight: 500;")
+        lbl_info_row.addWidget(self.lbl_jumlah_data)
+        lbl_info_row.addStretch()
+        layout.addLayout(lbl_info_row)
 
         # Tombol Bawah
         aksi_layout = QHBoxLayout()
@@ -484,6 +501,7 @@ class LayarPinjaman(QWidget):
 
         self.daftar_pinj = []
         self.muat_data()
+        self._perbarui_status_tombol()
 
     def muat_data(self) -> None:
         kata_kunci = self.input_cari.text().strip()
@@ -492,15 +510,17 @@ class LayarPinjaman(QWidget):
         self.daftar_pinj = ambil_daftar_pinjaman(
             self.conn, status_filter=status, kata_kunci=kata_kunci, limit=200
         )
+        self.tabel.setSortingEnabled(False)
         self.tabel.setRowCount(len(self.daftar_pinj))
 
         for baris, p in enumerate(self.daftar_pinj):
-            self.tabel.setItem(baris, 0, QTableWidgetItem(str(p["id"])))
+            id_item = QTableWidgetItem(str(p["id"]))
+            id_item.setData(Qt.ItemDataRole.UserRole, p["id"])
+            self.tabel.setItem(baris, 0, id_item)
             self.tabel.setItem(baris, 1, QTableWidgetItem(p["no_pinjaman"]))
             self.tabel.setItem(baris, 2, QTableWidgetItem(f"{p['nama_anggota']} ({p['no_anggota']})"))
 
-            plafon_item = QTableWidgetItem(format_rupiah(p["plafon"]))
-            plafon_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            plafon_item = NumericTableWidgetItem(format_rupiah(p["plafon"]), p["plafon"])
             self.tabel.setItem(baris, 3, plafon_item)
 
             self.tabel.setItem(baris, 4, QTableWidgetItem(f"{p['tenor']} bln"))
@@ -508,15 +528,38 @@ class LayarPinjaman(QWidget):
             self.tabel.setItem(baris, 6, QTableWidgetItem(format_tanggal_indo(p["tanggal_cair"])))
 
             status_item = QTableWidgetItem(p["status"].capitalize())
-            if p["status"] == "aktif":
-                status_item.setForeground(Qt.GlobalColor.darkGreen)
-            elif p["status"] == "diajukan":
-                status_item.setForeground(Qt.GlobalColor.darkYellow)
-            elif p["status"] == "lunas":
-                status_item.setForeground(Qt.GlobalColor.darkBlue)
-            elif p["status"] == "ditolak":
-                status_item.setForeground(Qt.GlobalColor.darkRed)
             self.tabel.setItem(baris, 7, status_item)
+
+        self.tabel.setSortingEnabled(True)
+
+        jml = len(self.daftar_pinj)
+        self.lbl_jumlah_data.setText(f"Menampilkan {jml} pinjaman")
+        if jml == 0:
+            if kata_kunci:
+                self.empty_state.tampilkan(
+                    f"Tidak ada pinjaman yang cocok dengan '{kata_kunci}'",
+                    label_tombol="Hapus pencarian",
+                    callback_aksi=self.input_cari.clear
+                )
+            else:
+                self.empty_state.tampilkan("Belum ada data pinjaman.")
+        else:
+            self.empty_state.hide()
+
+        self._perbarui_status_tombol()
+
+    def _perbarui_status_tombol(self) -> None:
+        baris = self.tabel.currentRow()
+        terpilih = (baris >= 0 and baris < len(self.daftar_pinj))
+        self.btn_detail.setEnabled(terpilih)
+        if terpilih:
+            p = self.daftar_pinj[baris]
+            bisa_disetujui = (p["status"] == "diajukan")
+            self.btn_setujui.setEnabled(bisa_disetujui)
+            self.btn_tolak.setEnabled(bisa_disetujui)
+        else:
+            self.btn_setujui.setEnabled(False)
+            self.btn_tolak.setEnabled(False)
 
     def _setujui_pengajuan(self) -> None:
         baris = self.tabel.currentRow()

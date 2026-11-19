@@ -101,6 +101,12 @@ def buat_ikon_sidebar(nama: str, warna_hex: str = "#E2E8F0") -> QIcon:
         p.drawLine(4, 10, 13, 10)
         p.drawLine(10, 7, 13, 10)
         p.drawLine(10, 13, 13, 10)
+    elif nama == "brand":
+        # Simbol Monogram Koperasi & Toko (Elegan, geometris)
+        p.drawRoundedRect(QRectF(2.5, 2.5, 15, 15), 3, 3)
+        p.drawLine(6, 6, 6, 14)
+        p.drawLine(6, 10, 13.5, 6)
+        p.drawLine(6, 10, 13.5, 14)
     elif nama == "panah_kiri":
         p.drawLine(13, 5, 8, 10)
         p.drawLine(8, 10, 13, 15)
@@ -116,14 +122,14 @@ def buat_ikon_sidebar(nama: str, warna_hex: str = "#E2E8F0") -> QIcon:
 
 
 def buat_ikon_chevron(sudut_derajat: float = 0.0, warna_hex: str = "#94A3B8") -> QIcon:
-    """Membuat ikon chevron 16x16 dengan orientasi sudut rotasi halus."""
-    pix = QPixmap(16, 16)
+    """Membuat ikon chevron 14x14 dengan orientasi sudut rotasi halus."""
+    pix = QPixmap(14, 14)
     pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.translate(8, 8)
+    p.translate(7, 7)
     p.rotate(sudut_derajat)
-    p.translate(-8, -8)
+    p.translate(-7, -7)
 
     pen = QPen(QColor(warna_hex))
     pen.setWidthF(1.75)
@@ -132,8 +138,8 @@ def buat_ikon_chevron(sudut_derajat: float = 0.0, warna_hex: str = "#94A3B8") ->
     p.setPen(pen)
 
     # Menggambar chevron menghadap kanan (0 derajat = ▸)
-    p.drawLine(6, 4, 11, 8)
-    p.drawLine(11, 8, 6, 12)
+    p.drawLine(5, 3, 10, 7)
+    p.drawLine(10, 7, 5, 11)
     p.end()
     return QIcon(pix)
 
@@ -141,7 +147,7 @@ def buat_ikon_chevron(sudut_derajat: float = 0.0, warna_hex: str = "#94A3B8") ->
 class TombolAnakNavigasi(QPushButton):
     """
     Item navigasi level 3 (anak menu dalam grup dropdown).
-    Indentasi 40px dari tepi kiri dengan bullet titik halus dan garis pemandu.
+    Indentasi 36px dari tepi kiri dengan bullet titik halus dan garis pemandu.
     """
 
     def __init__(self, label: str, kunci: str, parent=None):
@@ -149,17 +155,17 @@ class TombolAnakNavigasi(QPushButton):
         self.kunci = kunci
         self.setCheckable(True)
         self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.setFixedHeight(40)
+        self.setFixedHeight(38)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet("""
             QPushButton {
                 text-align: left;
-                padding-left: 40px;
-                padding-right: 12px;
+                padding-left: 36px;
+                padding-right: 10px;
                 border: none;
                 border-radius: 6px;
                 font-family: 'Segoe UI';
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 400;
                 color: #CBD5E1;
                 background-color: transparent;
@@ -179,20 +185,20 @@ class TombolAnakNavigasi(QPushButton):
                 border-left: 3px solid #3B82F6;
                 border-top-left-radius: 0px;
                 border-bottom-left-radius: 0px;
-                padding-left: 37px;
+                padding-left: 33px;
             }
         """)
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        # Gambar titik bullet 4px di posisi x=24px (tengah antara garis pemandu x=18px dan teks x=40px)
+        # Gambar titik bullet 4px di posisi x=20px
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         warna_bullet = QColor("#60A5FA") if self.isChecked() else QColor("#64748B")
         p.setBrush(warna_bullet)
         p.setPen(Qt.PenStyle.NoPen)
         cy = self.height() / 2.0
-        p.drawEllipse(QRectF(22, cy - 2, 4, 4))
+        p.drawEllipse(QRectF(20, cy - 2, 4, 4))
         p.end()
 
 
@@ -203,6 +209,7 @@ class GrupNavigasiAccordion(QWidget):
     """
 
     status_berubah = Signal(object, bool)  # self, terbuka
+    diklik = Signal(object)  # self (header diklik)
 
     def __init__(self, judul: str, nama_ikon: str, kunci_sec: str, parent=None):
         super().__init__(parent)
@@ -210,6 +217,7 @@ class GrupNavigasiAccordion(QWidget):
         self.nama_ikon = nama_ikon
         self.kunci_sec = kunci_sec
         self.terbuka = False
+        self.mode_terlipat_aktif = False
         self.anak_items: List[TombolAnakNavigasi] = []
         self._sudut_chevron = 0.0
 
@@ -217,15 +225,16 @@ class GrupNavigasiAccordion(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header Tombol Grup (Tinggi 44px)
+        # Header Tombol Grup (Tinggi Proporsional 42px)
         self.btn_header = QPushButton(self)
-        self.btn_header.setFixedHeight(44)
+        self.btn_header.setFixedHeight(42)
         self.btn_header.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_header.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.btn_header.setStyleSheet("""
             QPushButton {
                 text-align: left;
                 border: none;
+                border-left: 3px solid transparent;
                 border-radius: 6px;
                 background-color: transparent;
                 outline: none;
@@ -238,7 +247,8 @@ class GrupNavigasiAccordion(QWidget):
             }
         """)
 
-        # Isi Header: Ikon 20px di kiri + Teks 15px Semibold + Chevron di Kanan
+        # Isi Header: Ikon 20px di kiri + Teks 13.5px Semibold + Chevron 14px di Kanan
+        # Margin 12px (posisi X ikon persis 22px dari tepi sidebar, simetris di tengah 64px)
         h_layout = QHBoxLayout(self.btn_header)
         h_layout.setContentsMargins(12, 0, 12, 0)
         h_layout.setSpacing(10)
@@ -246,22 +256,22 @@ class GrupNavigasiAccordion(QWidget):
         self.lbl_ikon = QLabel(self.btn_header)
         self.lbl_ikon.setFixedSize(20, 20)
         self.lbl_ikon.setPixmap(buat_ikon_sidebar(nama_ikon, "#E2E8F0").pixmap(20, 20))
-        h_layout.addWidget(self.lbl_ikon)
+        h_layout.addWidget(self.lbl_ikon, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.lbl_judul = QLabel(judul, self.btn_header)
-        self.lbl_judul.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
-        self.lbl_judul.setStyleSheet("color: #E2E8F0; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+        self.lbl_judul.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self.lbl_judul.setStyleSheet("color: #E2E8F0; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
         h_layout.addWidget(self.lbl_judul, 1)
 
         self.lbl_chevron = QLabel(self.btn_header)
-        self.lbl_chevron.setFixedSize(16, 16)
-        self.lbl_chevron.setPixmap(buat_ikon_chevron(0.0, "#94A3B8").pixmap(16, 16))
-        h_layout.addWidget(self.lbl_chevron)
+        self.lbl_chevron.setFixedSize(14, 14)
+        self.lbl_chevron.setPixmap(buat_ikon_chevron(0.0, "#94A3B8").pixmap(14, 14))
+        h_layout.addWidget(self.lbl_chevron, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_header.clicked.connect(self.toggle)
+        self.btn_header.clicked.connect(self._on_header_diklik)
         layout.addWidget(self.btn_header)
 
-        # Wadah Anak (Dengan garis vertikal pemandu 1px di x=18)
+        # Wadah Anak (Dengan garis vertikal pemandu 1px di x=16)
         self.wadah_anak = QFrame(self)
         self.wadah_anak.setStyleSheet("background-color: transparent; border: none;")
         self.lay_anak = QVBoxLayout(self.wadah_anak)
@@ -276,6 +286,9 @@ class GrupNavigasiAccordion(QWidget):
         self.anim_chevron.setEasingCurve(QEasingCurve.Type.InOutQuad)
         self.anim_chevron.valueChanged.connect(self._on_anim_chevron)
 
+    def _on_header_diklik(self):
+        self.diklik.emit(self)
+
     def paintEvent(self, event):
         super().paintEvent(event)
         # Jika terbuka dan ada anak, gambar garis pemandu vertikal di wadah anak
@@ -289,7 +302,7 @@ class GrupNavigasiAccordion(QWidget):
             top_y = float(self.btn_header.height() + 4)
             bottom_y = float(self.height() - 6)
             if bottom_y > top_y:
-                p.drawLine(18.0, top_y, 18.0, bottom_y)
+                p.drawLine(16.0, top_y, 16.0, bottom_y)
             p.end()
 
     def tambah_anak(self, btn_anak: TombolAnakNavigasi) -> None:
@@ -298,9 +311,11 @@ class GrupNavigasiAccordion(QWidget):
 
     def _on_anim_chevron(self, val):
         self._sudut_chevron = float(val)
-        self.lbl_chevron.setPixmap(buat_ikon_chevron(self._sudut_chevron, "#94A3B8").pixmap(16, 16))
+        self.lbl_chevron.setPixmap(buat_ikon_chevron(self._sudut_chevron, "#94A3B8").pixmap(14, 14))
 
     def buka(self, emit_sinyal: bool = True) -> None:
+        if self.mode_terlipat_aktif:
+            return  # Jangan expand wadah anak di dalam sidebar yang 64px!
         if not self.terbuka:
             self.terbuka = True
             self.wadah_anak.show()
@@ -333,14 +348,15 @@ class GrupNavigasiAccordion(QWidget):
     def set_sorot_anak_aktif(self, aktif: bool) -> None:
         """Jika ada anak aktif di dalam grup ini, beri teks putih + ikon aksen tanpa latar penuh."""
         if aktif:
-            self.lbl_judul.setStyleSheet("color: #FFFFFF; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+            self.lbl_judul.setStyleSheet("color: #FFFFFF; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
             self.lbl_ikon.setPixmap(buat_ikon_sidebar(self.nama_ikon, "#60A5FA").pixmap(20, 20))
         else:
-            self.lbl_judul.setStyleSheet("color: #E2E8F0; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+            self.lbl_judul.setStyleSheet("color: #E2E8F0; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
             self.lbl_ikon.setPixmap(buat_ikon_sidebar(self.nama_ikon, "#E2E8F0").pixmap(20, 20))
 
     def atur_mode_terlipat(self, terlipat: bool) -> None:
         """Penyesuaian saat sidebar terlipat / mini."""
+        self.mode_terlipat_aktif = terlipat
         if terlipat:
             self.lbl_judul.hide()
             self.lbl_chevron.hide()
@@ -357,10 +373,11 @@ class GrupNavigasiAccordion(QWidget):
 class KomponenSidebar(QFrame):
     """
     Komponen Bilah Samping (Sidebar) Mandiri.
-    Mendukung mode normal (248px) dan mode terlipat (64px).
+    Mendukung mode normal (264px) dan mode terlipat (64px).
     """
 
     navigasi_diminta = Signal(str)
+    mode_lipat_berubah = Signal(bool)  # terlipat (True/False)
 
     def __init__(self, conn: sqlite3.Connection, parent=None):
         super().__init__(parent)
@@ -377,7 +394,7 @@ class KomponenSidebar(QFrame):
         self._inisialisasi_ui()
 
     def _inisialisasi_ui(self) -> None:
-        self.setFixedWidth(248)
+        self.setFixedWidth(264)
         self.setStyleSheet("""
             KomponenSidebar {
                 background-color: #0F172A;
@@ -389,51 +406,48 @@ class KomponenSidebar(QFrame):
         layout_utama.setContentsMargins(0, 0, 0, 0)
         layout_utama.setSpacing(0)
 
-        # 1. Header Sidebar
+        # 1. Header Sidebar (Bersih tanpa tombol panah karena tombol toggle sudah ada di bar atas)
         self.header_widget = QWidget(self)
         self.header_widget.setFixedHeight(64)
         self.header_widget.setStyleSheet("background-color: #0B1120; border-bottom: 1px solid #1E293B;")
         h_lay = QHBoxLayout(self.header_widget)
-        h_lay.setContentsMargins(14, 0, 10, 0)
-        h_lay.setSpacing(6)
+        h_lay.setContentsMargins(10, 0, 10, 0)
+        h_lay.setSpacing(0)
 
+        # Brand saat sidebar normal
         self.box_brand = QWidget(self.header_widget)
         b_lay = QVBoxLayout(self.box_brand)
-        b_lay.setContentsMargins(0, 0, 0, 0)
+        b_lay.setContentsMargins(12, 0, 12, 0)
         b_lay.setSpacing(2)
 
         self.lbl_brand_judul = QLabel("Koperasi dan Toko", self.box_brand)
-        self.lbl_brand_judul.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        self.lbl_brand_judul.setStyleSheet("color: #F8FAFC; font-size: 16px; font-weight: 700; border: none; background: transparent;")
+        self.lbl_brand_judul.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.lbl_brand_judul.setStyleSheet("color: #F8FAFC; font-size: 15px; font-weight: 700; border: none; background: transparent;")
         b_lay.addWidget(self.lbl_brand_judul)
 
         self.lbl_brand_sub = QLabel("Sistem Terpadu", self.box_brand)
-        self.lbl_brand_sub.setFont(QFont("Segoe UI", 9.5))
-        self.lbl_brand_sub.setStyleSheet("color: #94A3B8; font-size: 13px; border: none; background: transparent;")
+        self.lbl_brand_sub.setFont(QFont("Segoe UI", 9))
+        self.lbl_brand_sub.setStyleSheet("color: #94A3B8; font-size: 12px; border: none; background: transparent;")
         b_lay.addWidget(self.lbl_brand_sub)
 
         h_lay.addWidget(self.box_brand, 1)
 
-        self.btn_collapse = QPushButton(self.header_widget)
-        self.btn_collapse.setFixedSize(32, 32)
-        self.btn_collapse.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_collapse.setToolTip("Lipat menu")
-        self.btn_collapse.setIcon(buat_ikon_sidebar("panah_kiri", "#94A3B8"))
-        self.btn_collapse.setIconSize(QSize(18, 18))
-        self.btn_collapse.setStyleSheet("""
-            QPushButton {
-                background-color: #1E293B;
-                border: 1px solid #334155;
-                border-radius: 6px;
-                outline: none;
-            }
-            QPushButton:hover {
-                background-color: #334155;
-                border-color: #475569;
-            }
-        """)
-        self.btn_collapse.clicked.connect(self.toggle_mode_lipat)
-        h_lay.addWidget(self.btn_collapse)
+        # Brand mini saat sidebar terlipat (posisi X = 22px tepat sejajar dengan semua ikon!)
+        self.box_brand_mini = QWidget(self.header_widget)
+        b_mini_lay = QHBoxLayout(self.box_brand_mini)
+        b_mini_lay.setContentsMargins(12, 0, 12, 0)
+        b_mini_lay.setSpacing(0)
+
+        self.lbl_brand_mini = QLabel(self.box_brand_mini)
+        self.lbl_brand_mini.setFixedSize(20, 20)
+        self.lbl_brand_mini.setPixmap(buat_ikon_sidebar("brand", "#60A5FA").pixmap(20, 20))
+        self.lbl_brand_mini.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.lbl_brand_mini.setToolTip("Buka Bilah Menu")
+        self.lbl_brand_mini.mousePressEvent = lambda e: self.buka_sidebar()
+        b_mini_lay.addWidget(self.lbl_brand_mini, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.box_brand_mini.hide()
+
+        h_lay.addWidget(self.box_brand_mini)
 
         layout_utama.addWidget(self.header_widget)
 
@@ -468,7 +482,7 @@ class KomponenSidebar(QFrame):
 
         # === LEVEL 1: LINK LANGSUNG DASBOR UTAMA (TANPA DROPDOWN / CHEVRON) ===
         self.btn_dasbor = QPushButton(self.nav_konten)
-        self.btn_dasbor.setFixedHeight(44)
+        self.btn_dasbor.setFixedHeight(42)
         self.btn_dasbor.setCheckable(True)
         self.btn_dasbor.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_dasbor.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -476,6 +490,7 @@ class KomponenSidebar(QFrame):
             QPushButton {
                 text-align: left;
                 border: none;
+                border-left: 3px solid transparent;
                 border-radius: 6px;
                 background-color: transparent;
                 outline: none;
@@ -494,6 +509,7 @@ class KomponenSidebar(QFrame):
             }
         """)
 
+        # Margin 12px (posisi X ikon persis 22px dari tepi sidebar, simetris di tengah 64px)
         h_dasbor = QHBoxLayout(self.btn_dasbor)
         h_dasbor.setContentsMargins(12, 0, 12, 0)
         h_dasbor.setSpacing(10)
@@ -501,14 +517,14 @@ class KomponenSidebar(QFrame):
         self.lbl_dasbor_ikon = QLabel(self.btn_dasbor)
         self.lbl_dasbor_ikon.setFixedSize(20, 20)
         self.lbl_dasbor_ikon.setPixmap(buat_ikon_sidebar("dasbor", "#60A5FA").pixmap(20, 20))
-        h_dasbor.addWidget(self.lbl_dasbor_ikon)
+        h_dasbor.addWidget(self.lbl_dasbor_ikon, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.lbl_dasbor_teks = QLabel("Dasbor Utama", self.btn_dasbor)
-        self.lbl_dasbor_teks.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
-        self.lbl_dasbor_teks.setStyleSheet("color: #FFFFFF; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+        self.lbl_dasbor_teks.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        self.lbl_dasbor_teks.setStyleSheet("color: #FFFFFF; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
         h_dasbor.addWidget(self.lbl_dasbor_teks, 1)
 
-        self.btn_dasbor.clicked.connect(lambda: self._klik_item("ringkasan"))
+        self.btn_dasbor.clicked.connect(self._on_klik_dasbor)
         self.grup_exclusive.addButton(self.btn_dasbor)
         self.tombol_nav["ringkasan"] = self.btn_dasbor
         self.nav_layout.addWidget(self.btn_dasbor)
@@ -526,31 +542,30 @@ class KomponenSidebar(QFrame):
         scroll_area.setWidget(self.nav_konten)
         layout_utama.addWidget(scroll_area, 1)
 
-        # 3. Footer Sidebar (Tempel di bawah, dipisah garis tipis, selalu terlihat)
+        # 3. Footer Sidebar (Bersih, Minimalis, Flat - senada antara Backup dan Keluar)
         self.footer_widget = QWidget(self)
         self.footer_widget.setStyleSheet("background-color: #0B1120; border-top: 1px solid #1E293B;")
         f_lay = QVBoxLayout(self.footer_widget)
-        f_lay.setContentsMargins(10, 12, 10, 12)
-        f_lay.setSpacing(8)
+        f_lay.setContentsMargins(10, 10, 10, 10)
+        f_lay.setSpacing(6)
 
-        # Tombol Backup Sekarang (Outline Lebar Penuh)
+        # Tombol Backup Sekarang (Bersih, Flat senada dengan Keluar)
         self.btn_backup = QPushButton(self.footer_widget)
         self.btn_backup.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.btn_backup.setMinimumHeight(44)
+        self.btn_backup.setFixedHeight(38)
         self.btn_backup.setToolTip("Cadangkan database koperasi dan toko sekarang")
         self.btn_backup.setStyleSheet("""
             QPushButton {
-                background-color: #1E293B;
-                border: 1px solid #334155;
+                background-color: transparent;
+                border: none;
+                border-left: 3px solid transparent;
                 border-radius: 6px;
                 outline: none;
                 text-align: left;
-                padding-left: 10px;
-                padding-right: 10px;
             }
             QPushButton:hover {
-                background-color: #334155;
-                border-color: #60A5FA;
+                background-color: rgba(59, 130, 246, 0.12);
+                border: 1px solid rgba(59, 130, 246, 0.25);
             }
             QPushButton:focus {
                 border: 2px solid #3B82F6;
@@ -558,34 +573,23 @@ class KomponenSidebar(QFrame):
         """)
 
         lay_btn_bk = QHBoxLayout(self.btn_backup)
-        lay_btn_bk.setContentsMargins(4, 4, 4, 4)
-        lay_btn_bk.setSpacing(8)
+        lay_btn_bk.setContentsMargins(12, 0, 12, 0)
+        lay_btn_bk.setSpacing(10)
 
         self.lbl_bk_ikon = QLabel(self.btn_backup)
         self.lbl_bk_ikon.setFixedSize(20, 20)
         self.lbl_bk_ikon.setPixmap(buat_ikon_sidebar("backup", "#93C5FD").pixmap(20, 20))
-        lay_btn_bk.addWidget(self.lbl_bk_ikon)
+        lay_btn_bk.addWidget(self.lbl_bk_ikon, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
-        self.box_bk_teks = QWidget(self.btn_backup)
-        lay_bk_teks = QVBoxLayout(self.box_bk_teks)
-        lay_bk_teks.setContentsMargins(0, 0, 0, 0)
-        lay_bk_teks.setSpacing(1)
+        self.lbl_bk_teks = QLabel("Backup Sekarang", self.btn_backup)
+        self.lbl_bk_teks.setFont(QFont("Segoe UI", 9.5, QFont.Weight.DemiBold))
+        self.lbl_bk_teks.setStyleSheet("color: #93C5FD; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
+        lay_btn_bk.addWidget(self.lbl_bk_teks, 1)
 
-        self.lbl_bk_judul = QLabel("Backup Sekarang", self.box_bk_teks)
-        self.lbl_bk_judul.setFont(QFont("Segoe UI", 9.5, QFont.Weight.DemiBold))
-        self.lbl_bk_judul.setStyleSheet("color: #E2E8F0; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
-        lay_bk_teks.addWidget(self.lbl_bk_judul)
-
-        self.lbl_bk_sub = QLabel("Terakhir: -", self.box_bk_teks)
-        self.lbl_bk_sub.setFont(QFont("Segoe UI", 8))
-        self.lbl_bk_sub.setStyleSheet("color: #94A3B8; font-size: 11px; border: none; background: transparent;")
-        lay_bk_teks.addWidget(self.lbl_bk_sub)
-
-        lay_btn_bk.addWidget(self.box_bk_teks, 1)
-        self.btn_backup.clicked.connect(self._jalankan_backup_dengan_indikator)
+        self.btn_backup.clicked.connect(self._on_klik_backup)
         f_lay.addWidget(self.btn_backup)
 
-        # Tombol Keluar Aplikasi (Item Terpisah di Bawah Backup)
+        # Tombol Keluar Aplikasi (Bersih, Flat)
         self.btn_keluar = QPushButton(self.footer_widget)
         self.btn_keluar.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_keluar.setFixedHeight(38)
@@ -593,12 +597,11 @@ class KomponenSidebar(QFrame):
         self.btn_keluar.setStyleSheet("""
             QPushButton {
                 background-color: transparent;
-                border: 1px solid transparent;
+                border: none;
+                border-left: 3px solid transparent;
                 border-radius: 6px;
                 outline: none;
                 text-align: left;
-                padding-left: 10px;
-                padding-right: 10px;
             }
             QPushButton:hover {
                 background-color: rgba(239, 68, 68, 0.12);
@@ -610,18 +613,21 @@ class KomponenSidebar(QFrame):
         """)
 
         lay_btn_klr = QHBoxLayout(self.btn_keluar)
-        lay_btn_klr.setContentsMargins(4, 0, 4, 0)
-        lay_btn_klr.setSpacing(8)
+        lay_btn_klr.setContentsMargins(12, 0, 12, 0)
+        lay_btn_klr.setSpacing(10)
 
         self.lbl_klr_ikon = QLabel(self.btn_keluar)
         self.lbl_klr_ikon.setFixedSize(20, 20)
         self.lbl_klr_ikon.setPixmap(buat_ikon_sidebar("keluar", "#FCA5A5").pixmap(20, 20))
-        lay_btn_klr.addWidget(self.lbl_klr_ikon)
+        lay_btn_klr.addWidget(self.lbl_klr_ikon, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         self.lbl_klr_teks = QLabel("Keluar Aplikasi", self.btn_keluar)
         self.lbl_klr_teks.setFont(QFont("Segoe UI", 9.5, QFont.Weight.DemiBold))
         self.lbl_klr_teks.setStyleSheet("color: #FCA5A5; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
         lay_btn_klr.addWidget(self.lbl_klr_teks, 1)
+
+        self.btn_keluar.clicked.connect(self._konfirmasi_keluar)
+        f_lay.addWidget(self.btn_keluar)
 
         self.btn_keluar.clicked.connect(self._konfirmasi_keluar)
         f_lay.addWidget(self.btn_keluar)
@@ -675,6 +681,7 @@ class KomponenSidebar(QFrame):
         for kunci_sec, judul, nama_ikon, anak_list in struktur:
             grup = GrupNavigasiAccordion(judul, nama_ikon, kunci_sec, self.nav_konten)
             grup.status_berubah.connect(self._on_grup_status_berubah)
+            grup.diklik.connect(self._on_grup_diklik)
             self.grup_accordions[kunci_sec] = grup
 
             for kunci_btn, label_btn in anak_list:
@@ -686,6 +693,26 @@ class KomponenSidebar(QFrame):
                 grup.tambah_anak(btn_anak)
 
             self.nav_layout.addWidget(grup)
+
+    def _on_grup_diklik(self, grup: GrupNavigasiAccordion) -> None:
+        """Ketika ikon grup diklik: jika sidebar terlipat, buka sidebar terlebih dahulu."""
+        if self.terlipat:
+            self.buka_sidebar()
+            grup.buka()
+        else:
+            grup.toggle()
+
+    def _on_klik_dasbor(self) -> None:
+        """Ketika Dasbor Utama diklik: jika sidebar terlipat, buka sidebar terlebih dahulu."""
+        if self.terlipat:
+            self.buka_sidebar()
+        self._klik_item("ringkasan")
+
+    def _on_klik_backup(self) -> None:
+        """Ketika tombol backup diklik: jika sidebar terlipat, buka sidebar lalu jalankan backup."""
+        if self.terlipat:
+            self.buka_sidebar()
+        self._jalankan_backup_dengan_indikator()
 
     def _on_grup_status_berubah(self, grup_sumber: GrupNavigasiAccordion, terbuka: bool) -> None:
         """Mode Accordion: Ketika satu grup dibuka, tutup grup yang lain."""
@@ -707,12 +734,12 @@ class KomponenSidebar(QFrame):
             btn.setChecked(True)
 
         if kunci == "ringkasan":
-            self.lbl_dasbor_teks.setStyleSheet("color: #FFFFFF; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+            self.lbl_dasbor_teks.setStyleSheet("color: #FFFFFF; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
             self.lbl_dasbor_ikon.setPixmap(buat_ikon_sidebar("dasbor", "#60A5FA").pixmap(20, 20))
             for g in self.grup_accordions.values():
                 g.set_sorot_anak_aktif(False)
         else:
-            self.lbl_dasbor_teks.setStyleSheet("color: #E2E8F0; font-size: 15px; font-weight: 600; border: none; background: transparent;")
+            self.lbl_dasbor_teks.setStyleSheet("color: #E2E8F0; font-size: 13.5px; font-weight: 600; border: none; background: transparent;")
             self.lbl_dasbor_ikon.setPixmap(buat_ikon_sidebar("dasbor", "#E2E8F0").pixmap(20, 20))
 
             kunci_grup = self.pemetaan_anak_ke_grup.get(kunci)
@@ -724,14 +751,23 @@ class KomponenSidebar(QFrame):
                 else:
                     g.set_sorot_anak_aktif(False)
 
+    def buka_sidebar(self) -> None:
+        """Membuka sidebar ke ukuran normal jika sedang terlipat."""
+        if self.terlipat:
+            self.toggle_mode_lipat()
+
+    def tutup_sidebar(self) -> None:
+        """Melipat sidebar ke ukuran 64px jika sedang normal."""
+        if not self.terlipat:
+            self.toggle_mode_lipat()
+
     def toggle_mode_lipat(self) -> None:
-        """Beralih antara mode normal (248px) dan mode terlipat (64px)."""
+        """Beralih antara mode normal (264px) dan mode terlipat (64px)."""
         self.terlipat = not self.terlipat
         if self.terlipat:
             self.setFixedWidth(64)
             self.box_brand.hide()
-            self.btn_collapse.setIcon(buat_ikon_sidebar("panah_kanan", "#94A3B8"))
-            self.btn_collapse.setToolTip("Buka menu (248px)")
+            self.box_brand_mini.show()
 
             self.lbl_dasbor_teks.hide()
             self.btn_dasbor.setToolTip("Dasbor Utama")
@@ -739,15 +775,14 @@ class KomponenSidebar(QFrame):
             for g in self.grup_accordions.values():
                 g.atur_mode_terlipat(True)
 
-            self.box_bk_teks.hide()
+            self.lbl_bk_teks.hide()
             self.btn_backup.setToolTip("Backup Sekarang")
             self.lbl_klr_teks.hide()
             self.btn_keluar.setToolTip("Keluar Aplikasi")
         else:
-            self.setFixedWidth(248)
+            self.setFixedWidth(264)
             self.box_brand.show()
-            self.btn_collapse.setIcon(buat_ikon_sidebar("panah_kiri", "#94A3B8"))
-            self.btn_collapse.setToolTip("Lipat menu")
+            self.box_brand_mini.hide()
 
             self.lbl_dasbor_teks.show()
             self.btn_dasbor.setToolTip("")
@@ -755,27 +790,29 @@ class KomponenSidebar(QFrame):
             for g in self.grup_accordions.values():
                 g.atur_mode_terlipat(False)
 
-            self.box_bk_teks.show()
-            self.btn_backup.setToolTip("Cadangkan database koperasi dan toko sekarang")
+            self.lbl_bk_teks.show()
             self.lbl_klr_teks.show()
+            self.segarkan_info_backup()
             self.btn_keluar.setToolTip("Keluar dari aplikasi")
 
             # Pulihkan status grup yang aktif
             self.set_aktif(self.kunci_aktif_saat_ini)
 
+        self.mode_lipat_berubah.emit(self.terlipat)
+
     def segarkan_info_backup(self) -> None:
         try:
             info = ambil_info_backup_terakhir()
             if info:
-                self.lbl_bk_sub.setText(f"Terakhir: {info}")
+                self.btn_backup.setToolTip(f"Cadangkan database sekarang (Terakhir: {info})")
             else:
-                self.lbl_bk_sub.setText("Terakhir: Belum ada")
+                self.btn_backup.setToolTip("Cadangkan database sekarang (Belum ada backup)")
         except Exception:
-            self.lbl_bk_sub.setText("Terakhir: -")
+            self.btn_backup.setToolTip("Cadangkan database sekarang")
 
     def _jalankan_backup_dengan_indikator(self) -> None:
         """Menampilkan indikator proses saat backup lalu memberikan notifikasi hasil."""
-        self.lbl_bk_judul.setText("Mencadangkan...")
+        self.lbl_bk_teks.setText("Mencadangkan...")
         self.btn_backup.setEnabled(False)
         QApplication.processEvents()
 
@@ -795,7 +832,7 @@ class KomponenSidebar(QFrame):
                 f"Gagal melakukan backup database: {err}"
             )
         finally:
-            self.lbl_bk_judul.setText("Backup Sekarang")
+            self.lbl_bk_teks.setText("Backup Sekarang")
             self.btn_backup.setEnabled(True)
 
     def _konfirmasi_keluar(self) -> None:

@@ -22,6 +22,7 @@ from app.db.repo_opname_toko import (
 )
 from app.db.repo_barang import ambil_daftar_barang
 from app.util.format import format_rupiah, format_tanggal_indo
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class LayarOpnameToko(QWidget):
@@ -81,6 +82,10 @@ class LayarOpnameToko(QWidget):
         self.tbl_sesi.setColumnWidth(1, 105)  # Tanggal
         self.tbl_sesi.setColumnWidth(2, 90)   # Status
         self.tbl_sesi.setColumnWidth(3, 90)   # Periode
+        terapkan_style_tabel_global(
+            self.tbl_sesi,
+            kolom_status=2
+        )
         self.tbl_sesi.itemClicked.connect(self._pilih_sesi)
         lay_kiri.addWidget(self.tbl_sesi)
         splitter.addWidget(wadah_kiri)
@@ -103,6 +108,15 @@ class LayarOpnameToko(QWidget):
         self.tbl_barang.setColumnWidth(4, 130)  # Stok Fisik
         self.tbl_barang.setColumnWidth(5, 100)  # Selisih Qty
         self.tbl_barang.setColumnWidth(6, 150)  # Estimasi Selisih Nilai
+        terapkan_style_tabel_global(
+            self.tbl_barang,
+            rata_kanan_kolom=[3, 4, 5, 6]
+        )
+        self.tbl_barang.setEditTriggers(
+            QTableWidget.EditTrigger.DoubleClicked
+            | QTableWidget.EditTrigger.SelectedClicked
+            | QTableWidget.EditTrigger.EditKeyPressed
+        )
         self.tbl_barang.cellChanged.connect(self._on_cell_changed)
         lay_kanan.addWidget(self.tbl_barang)
         splitter.addWidget(wadah_kanan)

@@ -75,6 +75,7 @@ class JendelaUtama(QMainWindow):
         # 1. Sidebar Navigasi Kiri (Modern 3 Level)
         self.sidebar = KomponenSidebar(self.conn, self)
         self.sidebar.navigasi_diminta.connect(self._navigasi_dari_sidebar)
+        self.sidebar.mode_lipat_berubah.connect(self._on_sidebar_mode_lipat_berubah)
         self.sidebar_frame = self.sidebar
         layout_induk.addWidget(self.sidebar)
 
@@ -285,8 +286,11 @@ class JendelaUtama(QMainWindow):
         """Mendelegasikan buka/tutup ke komponen sidebar."""
         if hasattr(self, "sidebar") and self.sidebar:
             self.sidebar.toggle_mode_lipat()
-            if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar:
-                self.btn_toggle_sidebar.setText("☰ Buka Menu" if self.sidebar.terlipat else "☰ Menu")
+
+    def _on_sidebar_mode_lipat_berubah(self, terlipat: bool) -> None:
+        """Memperbarui teks tombol hamburger di top bar ketika mode lipat sidebar berubah."""
+        if hasattr(self, "btn_toggle_sidebar") and self.btn_toggle_sidebar:
+            self.btn_toggle_sidebar.setText("☰ Buka Menu" if terlipat else "☰ Menu")
 
     def _sorot_tombol_nav(self, kunci: str) -> None:
         """Memastikan tombol navigasi yang sesuai dengan layar aktif ditandai aktif di sidebar."""

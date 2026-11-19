@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QComboBox, QMessageBox, QDialog, QFormLayout, QTextEdit,
     QDateEdit
 )
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QCursor
 from PySide6.QtCore import Qt, QDate
 
 from app.db.repo_anggota import ambil_daftar_anggota, ambil_anggota_by_id
@@ -25,6 +25,9 @@ from app.db.repo_simpanan import (
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.cetak_kuitansi import buat_kuitansi_simpanan_pdf
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import (
+    terapkan_style_tabel_global, NumericTableWidgetItem
+)
 
 
 class DialogInputSimpanan(QDialog):
@@ -325,26 +328,45 @@ class LayarSimpanan(QWidget):
         self.tabel.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.tabel.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.tabel.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-        self.tabel.setColumnWidth(0, 50)   # ID
-        self.tabel.setColumnWidth(1, 115)  # Tanggal
+        self.tabel.setColumnWidth(0, 50)   # ID (sembunyi)
+        self.tabel.setColumnWidth(1, 120)  # Tanggal
         self.tabel.setColumnWidth(2, 110)  # No. Anggota
-        self.tabel.setColumnWidth(4, 95)   # Jenis
-        self.tabel.setColumnWidth(5, 80)   # Arah
-        self.tabel.setColumnWidth(6, 135)  # Nominal
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.setAlternatingRowColors(True)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+        self.tabel.setColumnWidth(4, 100)  # Jenis
+        self.tabel.setColumnWidth(5, 90)   # Arah
+        self.tabel.setColumnWidth(6, 140)  # Nominal (rata kanan)
+        
+        self.empty_state = terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[6],
+            kolom_status=5,
+            kolom_sembunyi=[0]
+        )
+        self.tabel.itemSelectionChanged.connect(self._perbarui_status_tombol)
 
         layout.addWidget(self.tabel)
+
+        # Baris Info Jumlah Data
+        lbl_info_row = QHBoxLayout()
+        self.lbl_jumlah_data = QLabel("Menampilkan 0 transaksi", self)
+        self.lbl_jumlah_data.setFont(QFont("Segoe UI", 9.5))
+        self.lbl_jumlah_data.setStyleSheet("color: #64748B; font-weight: 500;")
+        lbl_info_row.addWidget(self.lbl_jumlah_data)
+        lbl_info_row.addStretch()
+        layout.addLayout(lbl_info_row)
 
         # Tombol Aksi Bawah
         aksi_layout = QHBoxLayout()
         self.btn_cetak_kuitansi = QPushButton("Cetak Kuitansi Tanda Terima (PDF)", self)
+        self.btn_cetak_kuitansi.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_cetak_kuitansi.setMinimumHeight(42)
+        self.btn_cetak_kuitansi.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         self.btn_cetak_kuitansi.setProperty("tipe", "sukses")
         self.btn_cetak_kuitansi.clicked.connect(self._cetak_kuitansi)
 
         self.btn_balik = QPushButton("Batalkan Transaksi / Salah Catat", self)
+        self.btn_balik.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_balik.setMinimumHeight(42)
+        self.btn_balik.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         self.btn_balik.setProperty("tipe", "bahaya")
         self.btn_balik.clicked.connect(self._buka_dialog_pembalik)
 
@@ -355,6 +377,7 @@ class LayarSimpanan(QWidget):
 
         self.daftar_tx = []
         self.muat_data()
+        self._perbarui_status_tombol()
 
     def muat_data(self) -> None:
         kata_kunci = self.input_cari.text().strip()
@@ -363,24 +386,21 @@ class LayarSimpanan(QWidget):
         self.daftar_tx = ambil_riwayat_simpanan(
             self.conn, jenis=jenis, kata_kunci=kata_kunci, limit=200
         )
+        self.tabel.setSortingEnabled(False)
         self.tabel.setRowCount(len(self.daftar_tx))
 
         for baris, tx in enumerate(self.daftar_tx):
             id_item = QTableWidgetItem(str(tx["id"]))
+            id_item.setData(Qt.ItemDataRole.UserRole, tx["id"])
             tgl_item = QTableWidgetItem(format_tanggal_indo(tx["tanggal"]))
             no_ang_item = QTableWidgetItem(tx["no_anggota"])
             nama_item = QTableWidgetItem(tx["nama_anggota"])
             jenis_item = QTableWidgetItem(tx["jenis"].capitalize())
             
-            arah_teks = "SETOR" if tx["arah"] == "setor" else "TARIK"
+            arah_teks = "Setor" if tx["arah"] == "setor" else "Tarik"
             arah_item = QTableWidgetItem(arah_teks)
-            if tx["arah"] == "setor":
-                arah_item.setForeground(Qt.GlobalColor.darkGreen)
-            else:
-                arah_item.setForeground(Qt.GlobalColor.darkRed)
 
-            nom_item = QTableWidgetItem(format_rupiah(tx["jumlah"]))
-            nom_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            nom_item = NumericTableWidgetItem(format_rupiah(tx["jumlah"]), tx["jumlah"])
 
             ket = tx["keterangan"] or "-"
             if tx["membalik_id"]:
@@ -395,6 +415,31 @@ class LayarSimpanan(QWidget):
             self.tabel.setItem(baris, 5, arah_item)
             self.tabel.setItem(baris, 6, nom_item)
             self.tabel.setItem(baris, 7, ket_item)
+
+        self.tabel.setSortingEnabled(True)
+
+        # Update penghitung data & empty state
+        jml = len(self.daftar_tx)
+        self.lbl_jumlah_data.setText(f"Menampilkan {jml} transaksi simpanan")
+        if jml == 0:
+            if kata_kunci:
+                self.empty_state.tampilkan(
+                    f"Tidak ada transaksi yang cocok dengan '{kata_kunci}'",
+                    label_tombol="Hapus pencarian",
+                    callback_aksi=self.input_cari.clear
+                )
+            else:
+                self.empty_state.tampilkan("Belum ada riwayat transaksi simpanan.")
+        else:
+            self.empty_state.hide()
+
+        self._perbarui_status_tombol()
+
+    def _perbarui_status_tombol(self) -> None:
+        baris = self.tabel.currentRow()
+        terpilih = (baris >= 0 and baris < len(self.daftar_tx))
+        self.btn_cetak_kuitansi.setEnabled(terpilih)
+        self.btn_balik.setEnabled(terpilih)
 
     def _buka_dialog_input(self) -> None:
         dlg = DialogInputSimpanan(self.conn, parent=self)

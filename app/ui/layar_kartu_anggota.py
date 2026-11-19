@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt
 from app.db.repo_kartu_anggota import ambil_data_kartu_anggota
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.ekspor_excel import ekspor_tabel_ke_excel
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global, NumericTableWidgetItem
 
 
 class LayarKartuAnggota(QWidget):
@@ -136,9 +137,10 @@ class LayarKartuAnggota(QWidget):
         self.tabel_riwayat.setColumnWidth(1, 110)  # Kategori
         self.tabel_riwayat.setColumnWidth(3, 140)  # Masuk (Rp)
         self.tabel_riwayat.setColumnWidth(4, 140)  # Keluar (Rp)
-        self.tabel_riwayat.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_riwayat.setAlternatingRowColors(True)
-        self.tabel_riwayat.verticalHeader().setDefaultSectionSize(36)
+        terapkan_style_tabel_global(
+            self.tabel_riwayat,
+            rata_kanan_kolom=[3, 4]
+        )
         layout.addWidget(self.tabel_riwayat)
 
         self.data_kartu_saat_ini = None

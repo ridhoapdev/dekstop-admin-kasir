@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt
 
 from app.db.repo_barang import cari_barang, ambil_satuan_barang
 from app.layanan.layanan_stok import rekonsiliasi_stok_barang, cek_izinkan_stok_minus, atur_izinkan_stok_minus
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.layanan.bus_sinyal import langganan, lepas_langganan
 
 
@@ -80,10 +81,11 @@ class LayarDaftarStok(QWidget):
         self.tabel.setColumnWidth(3, 140)  # Stok Satuan Dasar
         self.tabel.setColumnWidth(5, 110)  # Stok Minimum
         self.tabel.setColumnWidth(6, 120)  # Status Stok
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[3, 5],
+            kolom_status=6
+        )
         layout.addWidget(self.tabel)
 
         self.muat_data()

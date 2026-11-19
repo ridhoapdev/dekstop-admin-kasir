@@ -17,6 +17,7 @@ from PySide6.QtCore import Qt
 from app.db.repo_pihak import (
     ambil_daftar_pihak, tambah_pihak, ubah_pihak, cek_nama_mirip_pihak
 )
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.layanan.bus_sinyal import langganan, lepas_langganan
 
 
@@ -203,10 +204,11 @@ class LayarPihak(QWidget):
         tabel.setColumnWidth(2, 140)  # Nomor HP
         tabel.setColumnWidth(4, 180)  # Catatan
         tabel.setColumnWidth(5, 90)   # Status
-        tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        tabel.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            tabel,
+            kolom_status=5,
+            kolom_sembunyi=[0]
+        )
         lay.addWidget(tabel)
 
         setattr(self, f"tabel_{jenis}", tabel)

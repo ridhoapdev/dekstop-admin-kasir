@@ -24,6 +24,7 @@ from app.db.repo_kartu_toko import ambil_data_kartu_barang
 from app.db.repo_opname_toko import catat_penyesuaian_manual
 from app.db.repo_barang import ubah_barang, ambil_barang_by_id
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.bus_sinyal import langganan, lepas_langganan
 
@@ -277,6 +278,10 @@ class LayarKartuBarang(QWidget):
         self.tbl_mutasi.setColumnWidth(4, 90)   # Keluar
         self.tbl_mutasi.setColumnWidth(5, 110)  # Saldo Berjalan
         self.tbl_mutasi.setColumnWidth(6, 130)  # Nilai Biaya
+        terapkan_style_tabel_global(
+            self.tbl_mutasi,
+            rata_kanan_kolom=[3, 4, 5, 6]
+        )
         lay_m.addWidget(self.tbl_mutasi)
 
         self.tabs.addTab(tab_mutasi, "Riwayat Kartu Stok")
@@ -299,6 +304,10 @@ class LayarKartuBarang(QWidget):
         self.tbl_lot.setColumnWidth(4, 100)  # Sisa Unit
         self.tbl_lot.setColumnWidth(5, 130)  # Harga Beli Dasar
         self.tbl_lot.setColumnWidth(6, 140)  # Total Biaya Sisa
+        terapkan_style_tabel_global(
+            self.tbl_lot,
+            rata_kanan_kolom=[4, 5, 6]
+        )
         lay_l.addWidget(self.tbl_lot)
 
         self.tabs.addTab(tab_lot, "Daftar Lot FIFO Aktif")

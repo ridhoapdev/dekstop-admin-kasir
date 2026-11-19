@@ -28,6 +28,7 @@ from app.db.repo_pembelian import (
 )
 from app.db.repo_pihak import ambil_daftar_pihak
 from app.db.repo_barang import cari_barang, ambil_satuan_barang, ambil_barang_by_id
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.ui.komponen.input_rupiah import InputRupiah
 from app.layanan.bus_sinyal import langganan, lepas_langganan
@@ -223,9 +224,10 @@ class DialogInputFaktur(QDialog):
         self.tabel.setColumnWidth(3, 140)  # Hasil Satuan Dasar
         self.tabel.setColumnWidth(4, 130)  # Harga Satuan
         self.tabel.setColumnWidth(5, 140)  # Total Biaya
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[1, 4, 5]
+        )
         layout.addWidget(self.tabel)
 
         # Ringkasan Total Faktur dan Tombol Aksi
@@ -458,10 +460,12 @@ class LayarPembelian(QWidget):
         self.tabel.setColumnWidth(5, 120)  # Metode Bayar
         self.tabel.setColumnWidth(6, 130)  # Status Pelunasan
         self.tabel.setColumnWidth(7, 110)  # Status Efektif
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[4],
+            kolom_status=6,
+            kolom_sembunyi=[0]
+        )
         layout.addWidget(self.tabel)
 
         # Bar Tombol Bawah

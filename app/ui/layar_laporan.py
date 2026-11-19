@@ -22,6 +22,7 @@ from app.db.repo_laporan import (
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.ekspor_excel import ekspor_tabel_ke_excel
 from app.layanan.ekspor_pdf import ekspor_laporan_ke_pdf
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class LayarLaporan(QWidget):
@@ -167,9 +168,12 @@ class LayarLaporan(QWidget):
         self.tabel.setColumnWidth(4, 135)  # Keluar (Rp)
         self.tabel.setColumnWidth(5, 120)  # Sumber
         self.tabel.setColumnWidth(6, 120)  # Status
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.setAlternatingRowColors(True)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_tengah_kolom=[0],
+            rata_kanan_kolom=[3, 4],
+            kolom_status=6
+        )
         layout.addWidget(self.tabel)
 
         self.muat_data()

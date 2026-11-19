@@ -20,6 +20,9 @@ from app.db.repo_kas import tambah_kas_manual, ambil_daftar_buku_kas, balik_kas_
 from app.db.repo_ringkasan import hitung_saldo_kas_saat_ini
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import (
+    terapkan_style_tabel_global, NumericTableWidgetItem
+)
 
 
 class DialogInputKasManual(QDialog):
@@ -164,16 +167,28 @@ class LayarKas(QWidget):
         ])
         self.tabel.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.tabel.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.tabel.setColumnWidth(0, 50)   # ID
-        self.tabel.setColumnWidth(1, 115)  # Tanggal
-        self.tabel.setColumnWidth(3, 140)  # Kas Masuk
-        self.tabel.setColumnWidth(4, 140)  # Kas Keluar
+        self.tabel.setColumnWidth(0, 50)   # ID (sembunyi)
+        self.tabel.setColumnWidth(1, 120)  # Tanggal
+        self.tabel.setColumnWidth(3, 140)  # Kas Masuk (rata kanan)
+        self.tabel.setColumnWidth(4, 140)  # Kas Keluar (rata kanan)
         self.tabel.setColumnWidth(5, 120)  # Sumber
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.setAlternatingRowColors(True)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+
+        self.empty_state = terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[3, 4],
+            kolom_sembunyi=[0]
+        )
+        self.tabel.itemSelectionChanged.connect(self._perbarui_status_tombol)
         layout.addWidget(self.tabel)
+
+        # Baris Info Jumlah Data
+        lbl_info_row = QHBoxLayout()
+        self.lbl_jumlah_data = QLabel("Menampilkan 0 catatan kas", self)
+        self.lbl_jumlah_data.setFont(QFont("Segoe UI", 9.5))
+        self.lbl_jumlah_data.setStyleSheet("color: #64748B; font-weight: 500;")
+        lbl_info_row.addWidget(self.lbl_jumlah_data)
+        lbl_info_row.addStretch()
+        layout.addLayout(lbl_info_row)
 
         # Tombol Aksi Bawah
         aksi_bottom = QHBoxLayout()
@@ -186,35 +201,66 @@ class LayarKas(QWidget):
 
         self.daftar_kas = []
         self.muat_data()
+        self._perbarui_status_tombol()
 
     def muat_data(self) -> None:
         cari = self.input_cari.text().strip()
         sumber = self.combo_sumber.currentData() or None
 
         self.daftar_kas = ambil_daftar_buku_kas(self.conn, sumber_filter=sumber, kata_kunci=cari, limit=300)
+        self.tabel.setSortingEnabled(False)
         self.tabel.setRowCount(len(self.daftar_kas))
 
         for b, r in enumerate(self.daftar_kas):
-            self.tabel.setItem(b, 0, QTableWidgetItem(str(r["id"])))
+            id_item = QTableWidgetItem(str(r["id"]))
+            id_item.setData(Qt.ItemDataRole.UserRole, r["id"])
+            self.tabel.setItem(b, 0, id_item)
             self.tabel.setItem(b, 1, QTableWidgetItem(format_tanggal_indo(r["tanggal"])))
             self.tabel.setItem(b, 2, QTableWidgetItem(r["keterangan"]))
 
-            m_item = QTableWidgetItem(format_rupiah(r["masuk"]) if r["masuk"] > 0 else "-")
-            m_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if r["masuk"] > 0:
+            m_val = r["masuk"] or 0
+            m_item = NumericTableWidgetItem(format_rupiah(m_val) if m_val > 0 else "-", m_val)
+            if m_val > 0:
                 m_item.setForeground(Qt.GlobalColor.darkGreen)
             self.tabel.setItem(b, 3, m_item)
 
-            k_item = QTableWidgetItem(format_rupiah(r["keluar"]) if r["keluar"] > 0 else "-")
-            k_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            if r["keluar"] > 0:
+            k_val = r["keluar"] or 0
+            k_item = NumericTableWidgetItem(format_rupiah(k_val) if k_val > 0 else "-", k_val)
+            if k_val > 0:
                 k_item.setForeground(Qt.GlobalColor.darkRed)
             self.tabel.setItem(b, 4, k_item)
 
             self.tabel.setItem(b, 5, QTableWidgetItem(r["sumber"].capitalize()))
 
+        self.tabel.setSortingEnabled(True)
+
         saldo = hitung_saldo_kas_saat_ini(self.conn)
         self.lbl_saldo_kas.setText(f"Posisi Kas Operasional: {format_rupiah(saldo)}")
+
+        jml = len(self.daftar_kas)
+        self.lbl_jumlah_data.setText(f"Menampilkan {jml} catatan kas")
+        if jml == 0:
+            if cari:
+                self.empty_state.tampilkan(
+                    f"Tidak ada catatan kas yang cocok dengan '{cari}'",
+                    label_tombol="Hapus pencarian",
+                    callback_aksi=self.input_cari.clear
+                )
+            else:
+                self.empty_state.tampilkan("Belum ada catatan buku kas.")
+        else:
+            self.empty_state.hide()
+
+        self._perbarui_status_tombol()
+
+    def _perbarui_status_tombol(self) -> None:
+        baris = self.tabel.currentRow()
+        terpilih = (baris >= 0 and baris < len(self.daftar_kas))
+        if terpilih:
+            tx = self.daftar_kas[baris]
+            self.btn_balik.setEnabled(tx["sumber"] == "manual")
+        else:
+            self.btn_balik.setEnabled(False)
 
     def _buka_dialog_tambah(self) -> None:
         dlg = DialogInputKasManual(self.conn, parent=self)

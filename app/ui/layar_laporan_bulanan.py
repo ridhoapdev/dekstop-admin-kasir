@@ -22,6 +22,7 @@ from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.ekspor_laporan_periode import (
     ekspor_laporan_bulanan_excel, ekspor_laporan_bulanan_pdf
 )
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class WorkerMuatBulanan(QThread):
@@ -173,8 +174,10 @@ class LayarLaporanBulanan(QWidget):
         self.tabel_simpanan.setColumnWidth(1, 140)
         self.tabel_simpanan.setColumnWidth(2, 140)
         self.tabel_simpanan.setColumnWidth(3, 160)
-        self.tabel_simpanan.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_simpanan.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(
+            self.tabel_simpanan,
+            rata_kanan_kolom=[1, 2, 3]
+        )
         self.tabel_simpanan.setFixedHeight(160)
         v_simp.addWidget(self.tabel_simpanan)
         konten_layout.addWidget(box_simp)
@@ -222,8 +225,10 @@ class LayarLaporanBulanan(QWidget):
         self.tabel_perbandingan.setColumnWidth(2, 140)
         self.tabel_perbandingan.setColumnWidth(3, 140)
         self.tabel_perbandingan.setColumnWidth(4, 120)
-        self.tabel_perbandingan.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_perbandingan.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(
+            self.tabel_perbandingan,
+            rata_kanan_kolom=[1, 2, 3, 4]
+        )
         self.tabel_perbandingan.setFixedHeight(185)
         v_pb.addWidget(self.tabel_perbandingan)
         konten_layout.addWidget(box_pb)
@@ -246,8 +251,11 @@ class LayarLaporanBulanan(QWidget):
         self.tabel_tunggakan.setColumnWidth(3, 115)
         self.tabel_tunggakan.setColumnWidth(4, 90)
         self.tabel_tunggakan.setColumnWidth(5, 140)
-        self.tabel_tunggakan.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_tunggakan.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(
+            self.tabel_tunggakan,
+            rata_tengah_kolom=[4],
+            rata_kanan_kolom=[5]
+        )
         self.tabel_tunggakan.setFixedHeight(160)
         v_tg.addWidget(self.tabel_tunggakan)
         konten_layout.addWidget(box_tg)
@@ -274,8 +282,12 @@ class LayarLaporanBulanan(QWidget):
         self.tabel_transaksi.setColumnWidth(4, 130)
         self.tabel_transaksi.setColumnWidth(5, 110)
         self.tabel_transaksi.setColumnWidth(6, 110)
-        self.tabel_transaksi.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_transaksi.setAlternatingRowColors(True)
+        terapkan_style_tabel_global(
+            self.tabel_transaksi,
+            rata_tengah_kolom=[0],
+            rata_kanan_kolom=[3, 4],
+            kolom_status=6
+        )
         self.tabel_transaksi.setFixedHeight(220)
         v_tx.addWidget(self.tabel_transaksi)
         konten_layout.addWidget(box_tx)

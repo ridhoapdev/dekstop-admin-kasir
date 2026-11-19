@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt, QDate
 from app.db.repo_kartu_anggota import ambil_transaksi_filter_cepat
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.layanan.ekspor_excel import ekspor_tabel_ke_excel
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global, NumericTableWidgetItem
 
 
 class LayarFilterCepat(QWidget):
@@ -94,10 +95,10 @@ class LayarFilterCepat(QWidget):
         self.tabel.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.tabel.setColumnWidth(0, 115)  # Tanggal
         self.tabel.setColumnWidth(3, 140)  # Nominal (Rp)
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.setAlternatingRowColors(True)
-        self.tabel.verticalHeader().setDefaultSectionSize(36)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[3]
+        )
         self.tabel.doubleClicked.connect(self._klik_baris)
         layout.addWidget(self.tabel)
 

@@ -23,6 +23,7 @@ from app.db.repo_ringkasan_toko import ambil_ringkasan_dasbor_toko
 from app.layanan.backup import ambil_info_backup_terakhir
 from app.layanan.bus_sinyal import langganan, lepas_langganan
 from app.util.format import format_rupiah, format_tanggal_indo
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 def _buat_ikon_vektor(nama: str, warna_hex: str = "#FFFFFF") -> QIcon:
@@ -671,7 +672,10 @@ class LayarRingkasan(QWidget):
         tabel.setColumnWidth(3, 110)
         tabel.setColumnWidth(4, 150)
         tabel.setRowCount(len(daftar))
-        tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            tabel,
+            rata_kanan_kolom=[4]
+        )
 
         for b, r in enumerate(daftar):
             tabel.setItem(b, 0, QTableWidgetItem(format_tanggal_indo(r["jatuh_tempo"])))
@@ -716,7 +720,11 @@ class LayarRingkasan(QWidget):
         tabel.setColumnWidth(2, 130)
         tabel.setColumnWidth(3, 170)
         tabel.setRowCount(len(daftar))
-        tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            tabel,
+            rata_tengah_kolom=[2],
+            rata_kanan_kolom=[3]
+        )
 
         for b, r in enumerate(daftar):
             tabel.setItem(b, 0, QTableWidgetItem(f"{r['nama_anggota']} ({r['no_anggota']})"))

@@ -22,6 +22,7 @@ from app.db.repo_closing import (
     eksekusi_closing_bulanan, buka_kembali_closing, ambil_daftar_riwayat_closing
 )
 from app.util.format import format_rupiah, format_tanggal_indo
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 
 
 class LayarClosing(QWidget):
@@ -74,10 +75,11 @@ class LayarClosing(QWidget):
             "Periode", "Tgl Closing", "Kas Awal", "Kas Masuk", "Kas Keluar", "Kas Akhir", "Total Simpanan", "Status"
         ])
         self.tabel_riwayat.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.tabel_riwayat.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel_riwayat.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_riwayat.setAlternatingRowColors(True)
-        self.tabel_riwayat.verticalHeader().setDefaultSectionSize(38)
+        terapkan_style_tabel_global(
+            self.tabel_riwayat,
+            rata_kanan_kolom=[2, 3, 4, 5, 6],
+            kolom_status=7
+        )
         layout.addWidget(self.tabel_riwayat)
 
         # Tombol Bawah: Buka Kembali Closing

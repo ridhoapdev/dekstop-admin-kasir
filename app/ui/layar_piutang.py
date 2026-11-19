@@ -24,6 +24,7 @@ from app.db.repo_piutang import (
 )
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.ui.komponen.input_rupiah import InputRupiah
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.layanan.bus_sinyal import langganan, lepas_langganan
 
 
@@ -163,10 +164,12 @@ class LayarPiutang(QWidget):
         self.tabel_pembeli.setColumnWidth(0, 50)   # ID
         self.tabel_pembeli.setColumnWidth(2, 130)  # Sisa Piutang
         self.tabel_pembeli.setColumnWidth(3, 110)  # Status
-        self.tabel_pembeli.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel_pembeli.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.tabel_pembeli.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_pembeli.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            self.tabel_pembeli,
+            rata_kanan_kolom=[2],
+            kolom_status=3,
+            kolom_sembunyi=[0]
+        )
         self.tabel_pembeli.itemSelectionChanged.connect(self._on_pembeli_terpilih)
         lay_kiri.addWidget(self.tabel_pembeli)
 
@@ -197,9 +200,10 @@ class LayarPiutang(QWidget):
         self.tabel_nota.setColumnWidth(3, 120)  # Total Nota
         self.tabel_nota.setColumnWidth(4, 110)  # Terbayar
         self.tabel_nota.setColumnWidth(5, 120)  # Sisa Tagihan
-        self.tabel_nota.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel_nota.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel_nota.verticalHeader().setDefaultSectionSize(38)
+        terapkan_style_tabel_global(
+            self.tabel_nota,
+            rata_kanan_kolom=[3, 4, 5]
+        )
         lay_kanan.addWidget(self.tabel_nota)
 
         splitter.addWidget(wadah_kiri)

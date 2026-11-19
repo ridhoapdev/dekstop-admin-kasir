@@ -28,6 +28,7 @@ from app.db.repo_penitipan import (
 from app.db.repo_pihak import ambil_daftar_pihak
 from app.db.repo_barang import cari_barang, ambil_satuan_barang, ambil_barang_by_id
 from app.db.repo_kas_toko import hitung_saldo_kas_toko
+from app.ui.komponen.tabel_helper import terapkan_style_tabel_global
 from app.util.format import format_rupiah, format_tanggal_indo
 from app.ui.komponen.input_rupiah import InputRupiah
 from app.layanan.bus_sinyal import langganan, lepas_langganan
@@ -120,9 +121,10 @@ class DialogInputPenitipanPagi(QDialog):
         self.tabel.setColumnWidth(2, 90)   # Satuan
         self.tabel.setColumnWidth(3, 140)  # Harga Titip
         self.tabel.setColumnWidth(4, 140)  # Harga Jual
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(38)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_kanan_kolom=[1, 3, 4]
+        )
         layout.addWidget(self.tabel)
 
         # Tombol Bawah
@@ -305,9 +307,11 @@ class LayarPenitipan(QWidget):
         self.tabel.setColumnWidth(4, 95)   # Sisa Stok
         self.tabel.setColumnWidth(5, 120)  # Harga Titip
         self.tabel.setColumnWidth(6, 130)  # Total Bayar
-        self.tabel.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.tabel.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.tabel.verticalHeader().setDefaultSectionSize(40)
+        terapkan_style_tabel_global(
+            self.tabel,
+            rata_tengah_kolom=[2, 3, 4],
+            rata_kanan_kolom=[5, 6]
+        )
         layout.addWidget(self.tabel)
 
         # Panel Setoran Sore Hari

@@ -260,35 +260,81 @@ QTextEdit {
     padding: 8px;
 }
 
-/* Tabel (QTableWidget) Rapi, Bersih, Header Tidak Berhimpitan */
+/* Tabel (QTableWidget) Rapi, Bersih, Header Tidak Berhimpitan (Standar Global) */
 QTableWidget {
     background-color: #FFFFFF;
+    alternate-background-color: #F8FAFC;
     border: 1px solid #E2E8F0;
-    border-radius: 6px;
-    gridline-color: #F1F5F9;
-    selection-background-color: #E0E7FF;
-    selection-color: #1E293B;
+    border-radius: 8px;
+    font-family: 'Segoe UI';
+    font-size: 14px;
+    color: #1E293B;
     outline: none;
-}
-
-QHeaderView::section {
-    background-color: #F8FAFC;
-    color: #475569;
-    padding: 8px 12px;
-    border: none;
-    border-bottom: 2px solid #CBD5E1;
-    border-right: 1px solid #E2E8F0;
-    font-weight: 700;
-    font-size: 10.5pt;
+    gridline-color: transparent;
 }
 
 QTableWidget::item {
-    padding: 6px 10px;
+    padding-left: 12px;
+    padding-right: 12px;
+    border-bottom: 1px solid #E5E7EB;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+}
+
+QTableWidget::item:hover {
+    background-color: #EFF6FF;
 }
 
 QTableWidget::item:selected {
-    background-color: #EFF6FF;
-    color: #1E3A8A;
+    background-color: #DBEAFE;
+    color: #0F172A;
+}
+
+QTableWidget::item:selected:!active {
+    background-color: #DBEAFE;
+    color: #0F172A;
+}
+
+QHeaderView::section {
+    background-color: #F1F5F9;
+    color: #334155;
+    font-family: 'Segoe UI';
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 2px solid #CBD5E1;
+}
+
+QHeaderView:vertical {
+    width: 0px;
+    border: none;
+}
+
+QHeaderView::section:vertical {
+    width: 0px;
+    height: 0px;
+    padding: 0px;
+    margin: 0px;
+    border: none;
+    background: transparent;
+}
+
+QHeaderView::section:hover {
+    background-color: #E2E8F0;
+}
+
+QHeaderView::down-arrow {
+    width: 10px;
+    height: 10px;
+    padding-right: 4px;
+}
+
+QHeaderView::up-arrow {
+    width: 10px;
+    height: 10px;
+    padding-right: 4px;
 }
 
 /* ScrollBar Ramping */
